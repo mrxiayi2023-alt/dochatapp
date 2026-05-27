@@ -72,6 +72,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       final token = data['token'] as String;
       final user = data['user'] as Map<String, dynamic>?;
+      // Persist token in ApiService so subsequent API calls carry it
+      await ApiService.instance.saveToken(token);
       state = AuthState(
         status: AuthStatus.authenticated,
         token: token,
@@ -93,6 +95,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       final token = data['token'] as String;
       final user = data['user'] as Map<String, dynamic>?;
+      // Persist token in ApiService so subsequent API calls carry it
+      await ApiService.instance.saveToken(token);
       state = AuthState(
         status: AuthStatus.authenticated,
         token: token,

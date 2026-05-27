@@ -1,120 +1,285 @@
 ﻿import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_model.dart';
+import '../services/api_service.dart';
+import '../services/auth_provider.dart';
 import 'chat_detail_page.dart';
 import 'group_chat_page.dart';
 
 // ---------------------------------------------------------------------------
-// Provider
+// Avatar colour palette (consistent colours based on name hash)
 // ---------------------------------------------------------------------------
 
-final chatListProvider = Provider<List<ChatModel>>((ref) {
-  return [
-    ChatModel(
-      name: '张三',
-      lastMessage: '周末一起去杭州西湖旅游吧？',
-      time: '14:30',
-      unreadCount: 3,
-      initial: '张',
-      avatarColor: CupertinoColors.systemBlue,
-    ),
-    ChatModel(
-      name: '项目讨论群',
-      lastMessage: '李四：[文件] 需求文档v3.pdf',
-      time: '09:15',
-      isGroup: true,
-      initial: '项',
-      avatarColor: CupertinoColors.systemGreen,
-      members: const ['李四', '王五', '赵六', '钱七', '自己'],
-    ),
-    ChatModel(
-      name: '王五',
-      lastMessage: '[图片]',
-      time: '昨天',
-      unreadCount: 1,
-      initial: '王',
-      avatarColor: CupertinoColors.systemOrange,
-    ),
-    ChatModel(
-      name: '赵六',
-      lastMessage: '好的，明天见',
-      time: '昨天',
-      initial: '赵',
-      avatarColor: CupertinoColors.systemPurple,
-    ),
-    ChatModel(
-      name: '设计小组',
-      lastMessage: '钱七：[视频]',
-      time: '周二',
-      unreadCount: 5,
-      isGroup: true,
-      initial: '设',
-      avatarColor: CupertinoColors.systemPink,
-      members: const ['钱七', '孙八', '周九', '吴十', '自己'],
-    ),
-  ];
-});
+const List<Color> _kAvatarColors = [
+  CupertinoColors.systemBlue,
+  CupertinoColors.systemGreen,
+  CupertinoColors.systemOrange,
+  CupertinoColors.systemPurple,
+  CupertinoColors.systemPink,
+  CupertinoColors.systemRed,
+  CupertinoColors.systemTeal,
+  CupertinoColors.systemIndigo,
+];
+
+Color _colorFromName(String name) {
+  final hash = name.codeUnits.fold<int>(0, (a, b) => a * 31 + b);
+  return _kAvatarColors[hash.abs() % _kAvatarColors.length];
+}
 
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
-class ChatPage extends ConsumerWidget {
+class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final chats = ref.watch(chatListProvider);
+  ConsumerState<ChatPage> createState() => _ChatPageState();
+}
 
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.white,
-      child: CustomScrollView(
-        slivers: [
-          CupertinoSliverNavigationBar(
-            largeTitle: const Text('聊天'),
-            trailing: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () => debugPrint('编辑'),
-              child: const Text(
-                '编辑',
-                style: TextStyle(fontSize: 17),
-              ),
-            ),
+class _ChatPageState extends ConsumerState<ChatPage> {
+  List<ChatModel> _chats = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Ensure token is loaded before fetching conversations
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadConversations());
+  }
+
+  // -----------------------------------------------------------------------
+  // Data loading
+  // -----------------------------------------------------------------------
+
+  Future<void> _loadConversations() async {
+    // Read current auth to ensure token is available
+    final authState = ref.read(authProvider);
+    if (authState.token == null) {
+      _fallbackToDemo();
+      return;
+    }
+
+    // Sync ApiService token from auth provider (the provider may hold the
+    // token from login/register without having saved it to ApiService yet).
+    if (ApiService.instance.token == null && authState.token != null) {
+      await ApiService.instance.saveToken(authState.token!);
+    }
+
+    try {
+      final data = await ApiService.instance.getConversations();
+      final chats = data.map<ChatModel>((c) {
+        final name = c['with_nickname'] as String? ?? '';
+        return ChatModel(
+          name: name,
+          lastMessage: c['last_message'] as String? ?? '',
+          time: c['last_time'] as String? ?? '',
+          unreadCount: c['unread_count'] as int? ?? 0,
+          initial: name.isNotEmpty ? name.characters.first : '?',
+          avatarColor: _colorFromName(name),
+          targetUserId: c['with_user_id'] as String? ?? '',
+        );
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _chats = chats;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      // API failed — fall back to hardcoded demo data
+      _fallbackToDemo();
+    }
+  }
+
+  void _fallbackToDemo() {
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _chats = [
+        ChatModel(
+          name: '张三',
+          lastMessage: '周末一起去杭州西湖旅游吧？',
+          time: '14:30',
+          unreadCount: 3,
+          initial: '张',
+          avatarColor: CupertinoColors.systemBlue,
+        ),
+        ChatModel(
+          name: '项目讨论群',
+          lastMessage: '李四：[文件] 需求文档v3.pdf',
+          time: '09:15',
+          isGroup: true,
+          initial: '项',
+          avatarColor: CupertinoColors.systemGreen,
+          members: const ['李四', '王五', '赵六', '钱七', '自己'],
+        ),
+        ChatModel(
+          name: '王五',
+          lastMessage: '[图片]',
+          time: '昨天',
+          unreadCount: 1,
+          initial: '王',
+          avatarColor: CupertinoColors.systemOrange,
+        ),
+        ChatModel(
+          name: '赵六',
+          lastMessage: '好的，明天见',
+          time: '昨天',
+          initial: '赵',
+          avatarColor: CupertinoColors.systemPurple,
+        ),
+        ChatModel(
+          name: '设计小组',
+          lastMessage: '钱七：[视频]',
+          time: '周二',
+          unreadCount: 5,
+          isGroup: true,
+          initial: '设',
+          avatarColor: CupertinoColors.systemPink,
+          members: const ['钱七', '孙八', '周九', '吴十', '自己'],
+        ),
+      ];
+    });
+  }
+
+  // -----------------------------------------------------------------------
+  // New chat dialog
+  // -----------------------------------------------------------------------
+
+  Future<void> _showNewChatDialog() async {
+    final phoneController = TextEditingController();
+
+    final phone = await showCupertinoDialog<String>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('新建聊天'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: CupertinoTextField(
+            controller: phoneController,
+            placeholder: '输入对方手机号',
+            keyboardType: TextInputType.phone,
+            autofocus: true,
+            clearButtonMode: OverlayVisibilityMode.editing,
           ),
-          SliverToBoxAdapter(
-            child: _SearchBar(),
+        ),
+        actions: <Widget>[
+          CupertinoDialogAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.of(ctx).pop(),
           ),
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final chat = chats[index];
-                return _ChatListItem(
-                  key: ValueKey(chat.name),
-                  chat: chat,
-                  isLast: index == chats.length - 1,
-                );
-              },
-              childCount: chats.length,
-            ),
-          ),
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: Stack(
-              children: [
-                const SizedBox.shrink(),
-                Positioned(
-                  right: 16,
-                  bottom: 16,
-                  child: _NewChatButton(),
-                ),
-              ],
-            ),
+          CupertinoDialogAction(
+            child: const Text('搜索'),
+            onPressed: () => Navigator.of(ctx).pop(phoneController.text.trim()),
           ),
         ],
       ),
     );
+
+    if (phone == null || phone.isEmpty) return;
+
+    try {
+      final user = await ApiService.instance.searchUser(phone);
+      final userId = user['id'] as String? ?? '';
+      final nickname = user['nickname'] as String? ?? phone;
+
+      if (!mounted) return;
+      Navigator.of(context).push(
+        CupertinoPageRoute(
+          builder: (_) => ChatDetailPage(
+            chat: ChatModel(
+              name: nickname,
+              lastMessage: '',
+              time: '',
+              initial: nickname.isNotEmpty ? nickname.characters.first : '?',
+              avatarColor: _colorFromName(nickname),
+              targetUserId: userId,
+            ),
+            targetUserId: userId,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      showCupertinoDialog(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('未找到用户'),
+          content: Text('手机号 $phone 未注册'),
+          actions: <Widget>[
+            CupertinoDialogAction(
+              child: const Text('确定'),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Build
+  // -----------------------------------------------------------------------
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoPageScaffold(
+      backgroundColor: CupertinoColors.white,
+      child: _loading
+          ? const Center(child: CupertinoActivityIndicator())
+          : CustomScrollView(
+              slivers: [
+                CupertinoSliverNavigationBar(
+                  largeTitle: const Text('聊天'),
+                  trailing: CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: () => debugPrint('编辑'),
+                    child: const Text(
+                      '编辑',
+                      style: TextStyle(fontSize: 17),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: _SearchBar(),
+                ),
+                CupertinoSliverRefreshControl(
+                  onRefresh: _loadConversations,
+                ),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final chat = _chats[index];
+                      return _ChatListItem(
+                        key: ValueKey(chat.name),
+                        chat: chat,
+                        isLast: index == _chats.length - 1,
+                      );
+                    },
+                    childCount: _chats.length,
+                  ),
+                ),
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Stack(
+                    children: [
+                      const SizedBox.shrink(),
+                      Positioned(
+                        right: 16,
+                        bottom: 16,
+                        child: _NewChatButton(onPressed: _showNewChatDialog),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+    );
   }
 }
+
 // ---------------------------------------------------------------------------
 // Search Bar
 // ---------------------------------------------------------------------------
@@ -143,11 +308,14 @@ class _SearchBar extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _NewChatButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  const _NewChatButton({required this.onPressed});
+
   @override
   Widget build(BuildContext context) {
     return CupertinoButton(
       padding: EdgeInsets.zero,
-      onPressed: () => debugPrint('新建聊天'),
+      onPressed: onPressed,
       child: Container(
         width: 56,
         height: 56,
@@ -156,9 +324,9 @@ class _NewChatButton extends StatelessWidget {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: CupertinoColors.activeBlue.withValues(alpha: 0.3),
+              color: CupertinoColors.activeBlue.withAlpha(77),
               blurRadius: 8,
-              offset: Offset(0, 4),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -200,12 +368,12 @@ class _ChatListItemState extends State<_ChatListItem> {
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) {
         setState(() => _pressed = false);
-        print('打开聊天：${chat.name}');
+        debugPrint('打开聊天：${chat.name}');
         Navigator.of(context).push(
           CupertinoPageRoute(
             builder: (context) => chat.isGroup
                 ? GroupChatPage(chat: chat)
-                : ChatDetailPage(chat: chat),
+                : ChatDetailPage(chat: chat, targetUserId: chat.targetUserId),
           ),
         );
       },
@@ -223,7 +391,7 @@ class _ChatListItemState extends State<_ChatListItem> {
                   fontSize: 17,
                   fontWeight: FontWeight.w600)),
         ),
-        onDismissed: (_) => print('删除聊天：${chat.name}'),
+        onDismissed: (_) => debugPrint('删除聊天：${chat.name}'),
         child: Container(
           height: 72,
           color:
@@ -342,10 +510,16 @@ class _Avatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 48, height: 48,
-      decoration: BoxDecoration(color: chat.avatarColor, shape: BoxShape.circle),
+      width: 48,
+      height: 48,
+      decoration:
+          BoxDecoration(color: chat.avatarColor, shape: BoxShape.circle),
       alignment: Alignment.center,
-      child: Text(chat.initial, style: TextStyle(color: CupertinoColors.white, fontSize: 20, fontWeight: FontWeight.w600)),
+      child: Text(chat.initial,
+          style: TextStyle(
+              color: CupertinoColors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w600)),
     );
   }
 }

@@ -53,6 +53,23 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	response.Success(c, resp)
 }
 
+// SearchUser handles GET /api/user/search?phone=xxx.
+func (h *AuthHandler) SearchUser(c *gin.Context) {
+	phone := c.Query("phone")
+	if phone == "" {
+		response.Error(c, http.StatusBadRequest, "missing phone parameter")
+		return
+	}
+
+	user, err := h.svc.SearchByPhone(phone)
+	if err != nil {
+		response.Error(c, http.StatusNotFound, "user not found")
+		return
+	}
+
+	response.Success(c, user)
+}
+
 // Profile handles GET /api/user/profile.
 func (h *AuthHandler) Profile(c *gin.Context) {
 	userID, exists := c.Get("userID")

@@ -80,6 +80,7 @@ func main() {
 	protected.Use(jwt)
 	{
 		protected.GET("/profile", authHdr.Profile)
+		protected.GET("/search", authHdr.SearchUser)
 	}
 
 	// Message routes (protected)

@@ -13,6 +13,7 @@ class ChatModel {
   final Color avatarColor;
   final String initial;
   final List<String>? members; // 群聊成员昵称列表
+  final String? targetUserId; // backend user ID for single chats
 
   const ChatModel({
     required this.name,
@@ -23,5 +24,6 @@ class ChatModel {
     required this.avatarColor,
     required this.initial,
     this.members,
+    this.targetUserId,
   });
 }

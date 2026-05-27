@@ -16,7 +16,17 @@ class ApiService {
   // Singleton
   // -------------------------------------------------------------------------
 
-  ApiService._(this._dio);
+  ApiService._(this._dio) {
+    // Interceptor: automatically attach Authorization header on every request.
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        if (_token != null) {
+          options.headers['Authorization'] = 'Bearer $_token';
+        }
+        handler.next(options);
+      },
+    ));
+  }
 
   static final ApiService _instance = ApiService._(
     Dio(BaseOptions(
@@ -84,9 +94,15 @@ class ApiService {
 
   /// Fetch the current user profile. Requires a valid token in [_token].
   Future<Map<String, dynamic>> getProfile() async {
+    final response = await _dio.get('/user/profile');
+    return _handleResponse(response);
+  }
+
+  /// Search for a user by phone number.
+  Future<Map<String, dynamic>> searchUser(String phone) async {
     final response = await _dio.get(
-      '/user/profile',
-      options: Options(headers: {'Authorization': 'Bearer $_token'}),
+      '/user/search',
+      queryParameters: {'phone': phone},
     );
     return _handleResponse(response);
   }
@@ -104,7 +120,6 @@ class ApiService {
     final response = await _dio.post(
       '/messages/send',
       data: {'to_id': toId, 'content': content, 'type': type},
-      options: Options(headers: {'Authorization': 'Bearer $_token'}),
     );
     return _handleResponse(response);
   }
@@ -114,7 +129,6 @@ class ApiService {
     final response = await _dio.get(
       '/messages/chat',
       queryParameters: {'with': otherId, 'limit': limit, 'offset': offset},
-      options: Options(headers: {'Authorization': 'Bearer $_token'}),
     );
     final body = response.data as Map<String, dynamic>?;
     if (body == null) throw Exception('empty response');
@@ -127,10 +141,7 @@ class ApiService {
 
   /// Get conversation list.
   Future<List<dynamic>> getConversations() async {
-    final response = await _dio.get(
-      '/messages/conversations',
-      options: Options(headers: {'Authorization': 'Bearer $_token'}),
-    );
+    final response = await _dio.get('/messages/conversations');
     final body = response.data as Map<String, dynamic>?;
     if (body == null) throw Exception('empty response');
     if (body['code'] != 200) throw Exception(body['message'] ?? 'error');

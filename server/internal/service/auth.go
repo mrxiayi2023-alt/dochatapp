@@ -108,6 +108,11 @@ func (s *AuthService) Login(req *LoginRequest) (*AuthResponse, error) {
 	return &AuthResponse{Token: token, User: user}, nil
 }
 
+// SearchByPhone finds a user by phone number (used for "new chat").
+func (s *AuthService) SearchByPhone(phone string) (*model.User, error) {
+	return s.repo.FindByPhone(phone)
+}
+
 // GetProfile returns user info by ID.
 func (s *AuthService) GetProfile(userID string) (*model.User, error) {
 	user, err := s.repo.FindByID(userID)
