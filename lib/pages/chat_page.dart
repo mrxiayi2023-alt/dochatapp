@@ -1,29 +1,8 @@
-import 'package:flutter/cupertino.dart';
+﻿import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-// ---------------------------------------------------------------------------
-// Model
-// ---------------------------------------------------------------------------
-
-class ChatModel {
-  final String name;
-  final String lastMessage;
-  final String time;
-  final int unreadCount;
-  final bool isGroup;
-  final Color avatarColor;
-  final String initial;
-
-  const ChatModel({
-    required this.name,
-    required this.lastMessage,
-    required this.time,
-    this.unreadCount = 0,
-    this.isGroup = false,
-    required this.avatarColor,
-    required this.initial,
-  });
-}
+import '../models/chat_model.dart';
+import 'chat_detail_page.dart';
+import 'group_chat_page.dart';
 
 // ---------------------------------------------------------------------------
 // Provider
@@ -46,6 +25,7 @@ final chatListProvider = Provider<List<ChatModel>>((ref) {
       isGroup: true,
       initial: '项',
       avatarColor: CupertinoColors.systemGreen,
+      members: const ['李四', '王五', '赵六', '钱七', '自己'],
     ),
     ChatModel(
       name: '王五',
@@ -70,6 +50,7 @@ final chatListProvider = Provider<List<ChatModel>>((ref) {
       isGroup: true,
       initial: '设',
       avatarColor: CupertinoColors.systemPink,
+      members: const ['钱七', '孙八', '周九', '吴十', '自己'],
     ),
   ];
 });
@@ -191,8 +172,11 @@ class _NewChatButton extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
 // Chat List Item
-class _ChatListItem extends StatelessWidget {
+// ---------------------------------------------------------------------------
+
+class _ChatListItem extends StatefulWidget {
   final ChatModel chat;
   final bool isLast;
   const _ChatListItem({
@@ -201,22 +185,49 @@ class _ChatListItem extends StatelessWidget {
     this.isLast = false,
   });
   @override
+  State<_ChatListItem> createState() => _ChatListItemState();
+}
+
+class _ChatListItemState extends State<_ChatListItem> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Dismissible(
-      key: ValueKey('${chat.name}_dismiss'),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        color: CupertinoColors.destructiveRed,
-        child: const Text('删除', style: TextStyle(color: CupertinoColors.white, fontSize: 17, fontWeight: FontWeight.w600)),
-      ),
-      onDismissed: (_) => debugPrint('删除聊天：${chat.name}'),
-      child: GestureDetector(
-        onTap: () => debugPrint('打开聊天：${chat.name}'),
+    final chat = widget.chat;
+    final isLast = widget.isLast;
+
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        print('打开聊天：${chat.name}');
+        Navigator.of(context).push(
+          CupertinoPageRoute(
+            builder: (context) => chat.isGroup
+                ? GroupChatPage(chat: chat)
+                : ChatDetailPage(chat: chat),
+          ),
+        );
+      },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: Dismissible(
+        key: ValueKey('${chat.name}_dismiss'),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
+          color: CupertinoColors.destructiveRed,
+          child: const Text('删除',
+              style: TextStyle(
+                  color: CupertinoColors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600)),
+        ),
+        onDismissed: (_) => print('删除聊天：${chat.name}'),
         child: Container(
           height: 72,
-          color: CupertinoColors.white,
+          color:
+              _pressed ? CupertinoColors.systemGrey6 : CupertinoColors.white,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
             children: [
@@ -238,41 +249,67 @@ class _ChatListItem extends StatelessWidget {
                                     if (chat.isGroup)
                                       const Padding(
                                         padding: EdgeInsets.only(right: 4),
-                                        child: Icon(CupertinoIcons.person_3_fill, size: 14, color: CupertinoColors.systemGrey),
+                                        child: Icon(
+                                          CupertinoIcons.person_3_fill,
+                                          size: 14,
+                                          color: CupertinoColors.systemGrey,
+                                        ),
                                       ),
                                     Flexible(
                                       child: Text(
                                         chat.name,
-                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              Text(chat.time, style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+                              Text(
+                                chat.time,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: CupertinoColors.systemGrey,
+                                ),
+                              ),
                             ],
                           ),
-                          SizedBox(height: 4),
+                          const SizedBox(height: 4),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               Expanded(
                                 child: Text(
                                   chat.lastMessage,
-                                  style: TextStyle(fontSize: 15, color: CupertinoColors.systemGrey),
-                                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: CupertinoColors.systemGrey,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              if (chat.unreadCount > 0) ...[  
-                                SizedBox(width: 6),
+                              if (chat.unreadCount > 0) ...[
+                                const SizedBox(width: 6),
                                 Container(
-                                  width: 20, height: 20,
-                                  decoration: BoxDecoration(color: CupertinoColors.activeBlue, shape: BoxShape.circle),
+                                  width: 20,
+                                  height: 20,
+                                  decoration: const BoxDecoration(
+                                    color: CupertinoColors.activeBlue,
+                                    shape: BoxShape.circle,
+                                  ),
                                   alignment: Alignment.center,
                                   child: Text(
                                     chat.unreadCount > 99 ? '99+' : '${chat.unreadCount}',
-                                    style: TextStyle(color: CupertinoColors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                                    style: const TextStyle(
+                                      color: CupertinoColors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -285,7 +322,11 @@ class _ChatListItem extends StatelessWidget {
                 ),
               ),
               if (!isLast)
-                Container(height: 0.5, margin: EdgeInsets.only(left: 72), color: CupertinoColors.systemGrey5),
+                Container(
+                  height: 0.5,
+                  margin: const EdgeInsets.only(left: 72),
+                  color: CupertinoColors.systemGrey5,
+                ),
             ],
           ),
         ),
