@@ -32,18 +32,22 @@ func main() {
 	log.Println("PostgreSQL connected successfully")
 
 	// Auto-migrate
-	if err := db.AutoMigrate(&model.User{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.Message{}); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
 	log.Println("Database migration completed")
 
-	// Initialize layers
-	userRepo := repository.NewUserRepository(db)
-	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret)
-	authHdr := handler.NewAuthHandler(authSvc)
-
 	// WebSocket hub
 	hub := websocket.NewHub()
+	go hub.Run()
+
+	// Initialize layers
+	userRepo := repository.NewUserRepository(db)
+	msgRepo := repository.NewMessageRepository(db)
+	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret)
+	msgSvc := service.NewMessageService(msgRepo, hub)
+	authHdr := handler.NewAuthHandler(authSvc)
+	msgHdr := handler.NewMessageHandler(msgSvc)
 
 	// Gin engine
 	r := gin.Default()
@@ -71,18 +75,28 @@ func main() {
 	}
 
 	// Protected routes
+	jwt := middleware.JWTAuth(cfg.JWTSecret)
 	protected := api.Group("/user")
-	protected.Use(middleware.JWTAuth(cfg.JWTSecret))
+	protected.Use(jwt)
 	{
 		protected.GET("/profile", authHdr.Profile)
 	}
 
+	// Message routes (protected)
+	msgs := api.Group("/messages")
+	msgs.Use(jwt)
+	{
+		msgs.POST("/send", msgHdr.Send)
+		msgs.GET("/conversations", msgHdr.Conversations)
+		msgs.GET("/chat", msgHdr.ChatHistory)
+	}
+
 	// WebSocket route
 	r.GET("/ws", func(c *gin.Context) {
-		// In production, extract userID from query param or JWT
 		userID := c.Query("user_id")
 		if userID == "" {
-			userID = "anonymous"
+			c.JSON(400, gin.H{"error": "missing user_id"})
+			return
 		}
 		hub.HandleWebSocket(c.Writer, c.Request, userID)
 	})

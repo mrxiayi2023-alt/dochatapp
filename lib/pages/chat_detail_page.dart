@@ -1,69 +1,161 @@
 ﻿import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_model.dart';
+import '../services/api_service.dart';
+import '../services/auth_provider.dart';
+import '../services/websocket_service.dart';
 import 'call_page.dart';
 
 // ---------------------------------------------------------------------------
-// Message Model
+// Message Model (UI)
 // ---------------------------------------------------------------------------
 
 class Message {
+  final String id;
   final String text;
   final bool isMe;
   final String time; // "HH:mm"
+  final String fromId;
 
-  const Message({
+  Message({
+    String? id,
     required this.text,
     required this.isMe,
     required this.time,
-  });
+    this.fromId = '',
+  }) : id = id ?? DateTime.now().millisecondsSinceEpoch.toString();
 }
-
-// ---------------------------------------------------------------------------
-// Demo data
-// ---------------------------------------------------------------------------
-
-final List<Message> demoMessages = [
-  const Message(text: '你好，周末有空吗？', isMe: false, time: '14:30'),
-  const Message(text: '有空啊，怎么了？', isMe: true, time: '14:32'),
-  const Message(text: '周末一起去杭州西湖旅游吧？', isMe: false, time: '14:33'),
-  const Message(text: '好啊！我早就想去了', isMe: true, time: '14:33'),
-  const Message(text: '我查了攻略，可以坐船游湖，还能去灵隐寺', isMe: false, time: '14:35'),
-  const Message(text: '太棒了，那我订酒店', isMe: true, time: '14:36'),
-  const Message(text: 'ok，到时候见👋', isMe: false, time: '14:37'),
-];
 
 // ---------------------------------------------------------------------------
 // Chat Detail Page
 // ---------------------------------------------------------------------------
 
-class ChatDetailPage extends StatefulWidget {
+class ChatDetailPage extends ConsumerStatefulWidget {
   final ChatModel chat;
+  final String? targetUserId; // backend user ID for API calls
 
-  const ChatDetailPage({super.key, required this.chat});
+  const ChatDetailPage({super.key, required this.chat, this.targetUserId});
 
   @override
-  State<ChatDetailPage> createState() => _ChatDetailPageState();
+  ConsumerState<ChatDetailPage> createState() => _ChatDetailPageState();
 }
 
-class _ChatDetailPageState extends State<ChatDetailPage> {
-  final List<Message> _messages = List.from(demoMessages);
+class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
+  final List<Message> _messages = [];
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final WebSocketService _wsService = WebSocketService();
+  bool _loadingHistory = true;
+  bool _useDemoFallback = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    _initChat();
   }
 
   @override
   void dispose() {
     _textController.dispose();
     _scrollController.dispose();
+    _wsService.onMessage = null;
     super.dispose();
   }
 
-  void _sendMessage() {
+  Future<void> _initChat() async {
+    // Connect WebSocket
+    final authState = ref.read(authProvider);
+    final myId = authState.user?['id'] as String?;
+    if (myId != null) {
+      _wsService.onMessage = _onWsMessage;
+      await _wsService.connect(myId);
+    }
+
+    // Load chat history from API
+    await _loadHistory();
+
+    if (mounted) {
+      setState(() => _loadingHistory = false);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    }
+  }
+
+  Future<void> _loadHistory() async {
+    final otherId = widget.targetUserId;
+    if (otherId == null || otherId.isEmpty) {
+      _fallbackToDemo();
+      return;
+    }
+
+    try {
+      final data = await ApiService.instance.getChatHistory(otherId);
+      final authState = ref.read(authProvider);
+      final myId = authState.user?['id'] as String? ?? '';
+
+      final messages = data.map((m) {
+        final fromId = m['from_id'] as String? ?? '';
+        return Message(
+          id: m['id'] as String? ?? '',
+          text: m['content'] as String? ?? '',
+          isMe: fromId == myId,
+          time: _formatApiTime(m['created_at'] as String?),
+          fromId: fromId,
+        );
+      }).toList();
+
+      if (mounted) setState(() => _messages.addAll(messages));
+      return;
+    } catch (_) {
+      // API failed, fall back to demo
+    }
+
+    _fallbackToDemo();
+  }
+
+  void _fallbackToDemo() {
+    _useDemoFallback = true;
+    final demoMessages = [
+      Message(text: '你好，周末有空吗？', isMe: false, time: '14:30'),
+      Message(text: '有空啊，怎么了？', isMe: true, time: '14:32'),
+      Message(text: '周末一起去杭州西湖旅游吧？', isMe: false, time: '14:33'),
+      Message(text: '好啊！我早就想去了', isMe: true, time: '14:33'),
+      Message(text: '我查了攻略，可以坐船游湖，还能去灵隐寺', isMe: false, time: '14:35'),
+      Message(text: '太棒了，那我订酒店', isMe: true, time: '14:36'),
+      Message(text: 'ok，到时候见👋', isMe: false, time: '14:37'),
+    ];
+    if (mounted) setState(() => _messages.addAll(demoMessages));
+  }
+
+  String _formatApiTime(String? isoTime) {
+    if (isoTime == null) return '';
+    try {
+      final dt = DateTime.parse(isoTime);
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// Handle incoming WebSocket message.
+  void _onWsMessage(WsChatMessage wsMsg) {
+    if (!mounted) return;
+    final otherId = widget.targetUserId;
+    // Only show messages from the current chat partner
+    if (otherId != null && wsMsg.fromId != otherId) return;
+
+    setState(() {
+      _messages.add(Message(
+        id: wsMsg.msgId ?? '',
+        text: wsMsg.content,
+        isMe: false,
+        time: wsMsg.time,
+        fromId: wsMsg.fromId,
+      ));
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+  }
+
+  Future<void> _sendMessage() async {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
@@ -71,11 +163,27 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     final timeStr =
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
+    final msg = Message(text: text, isMe: true, time: timeStr);
+
     setState(() {
-      _messages.add(Message(text: text, isMe: true, time: timeStr));
+      _messages.add(msg);
       _textController.clear();
     });
 
+    _scrollToBottom();
+
+    // Try to send via API
+    final otherId = widget.targetUserId;
+    if (otherId != null && !_useDemoFallback) {
+      try {
+        await ApiService.instance.sendMessage(toId: otherId, content: text);
+      } catch (_) {
+        // Silent fail — message still shows locally
+      }
+    }
+  }
+
+  void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -85,12 +193,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         );
       }
     });
-  }
-
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-    }
   }
 
   int _timeDiffInMinutes(String t1, String t2) {
@@ -109,6 +211,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     final diff = _timeDiffInMinutes(_messages[index - 1].time, _messages[index].time);
     return diff.abs() > 5;
   }
+
 
   // -----------------------------------------------------------------------
   // Build
@@ -153,34 +256,36 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       child: Column(
         children: [
           Expanded(
-            child: GestureDetector(
-              onTap: () => FocusScope.of(context).unfocus(),
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.only(top: 8, bottom: 8),
-                itemCount: _messages.length,
-                itemBuilder: (context, index) {
-                  final msg = _messages[index];
-                  final showTime = _shouldShowTime(index);
-                  return Column(
-                    children: [
-                      if (showTime)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: Text(
-                            msg.time,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: CupertinoColors.systemGrey,
-                            ),
-                          ),
-                        ),
-                      _MessageBubble(message: msg),
-                    ],
-                  );
-                },
-              ),
-            ),
+            child: _loadingHistory
+                ? const Center(child: CupertinoActivityIndicator())
+                : GestureDetector(
+                    onTap: () => FocusScope.of(context).unfocus(),
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.only(top: 8, bottom: 8),
+                      itemCount: _messages.length,
+                      itemBuilder: (context, index) {
+                        final msg = _messages[index];
+                        final showTime = _shouldShowTime(index);
+                        return Column(
+                          children: [
+                            if (showTime)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                child: Text(
+                                  msg.time,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: CupertinoColors.systemGrey,
+                                  ),
+                                ),
+                              ),
+                            _MessageBubble(message: msg),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
           ),
           _BottomBar(
             controller: _textController,

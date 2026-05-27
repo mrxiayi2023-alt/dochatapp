@@ -327,25 +327,6 @@ class _PlazaPageState extends State<PlazaPage> {
 }
 
 // ---------------------------------------------------------------------------
-// Helper: coming-soon bottom sheet
-// ---------------------------------------------------------------------------
-
-void _showComingSoon(BuildContext context, String feature) {
-  showCupertinoModalPopup(
-    context: context,
-    builder: (context) => CupertinoActionSheet(
-      title: Text('$feature页面（即将上线）'),
-      message: const Text('功能正在开发中，敬请期待'),
-      cancelButton: CupertinoActionSheetAction(
-        isDefaultAction: true,
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('知道了'),
-      ),
-    ),
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Feed Card
 // ---------------------------------------------------------------------------
 

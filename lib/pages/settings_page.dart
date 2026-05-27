@@ -1,4 +1,6 @@
 ﻿import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/auth_provider.dart';
 
 // ---------------------------------------------------------------------------
 // Avatar color helpers
@@ -20,26 +22,17 @@ Color _nameToColor(String name) {
 }
 
 // ---------------------------------------------------------------------------
-// User data
-// ---------------------------------------------------------------------------
-
-const String _kUserName = '张三';
-const String _kUserId = '@zhangsan';
-const String _kUserEmail = 'zhangsan@example.com';
-const bool _kIsVerified = true;
-
-// ---------------------------------------------------------------------------
 // Settings Page
 // ---------------------------------------------------------------------------
 
-class SettingsPage extends StatefulWidget {
+class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
   @override
-  State<SettingsPage> createState() => _SettingsPageState();
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _darkMode = false;
 
   // ---------------------------------------------------------------------------
@@ -91,7 +84,7 @@ class _SettingsPageState extends State<SettingsPage> {
             isDestructiveAction: true,
             onPressed: () {
               Navigator.of(context).pop();
-              print('退出登录');
+              ref.read(authProvider.notifier).logout();
             },
             child: const Text('退出'),
           ),
@@ -189,6 +182,12 @@ class _SettingsPageState extends State<SettingsPage> {
   // ---------------------------------------------------------------------------
 
   Widget _buildProfileCard(Color cardColor, Color textColor, Color secondaryText, bool isDark) {
+    final authState = ref.watch(authProvider);
+    final user = authState.user;
+    final userName = user?['nickname'] as String? ?? '用户';
+    final userId = '@${user?['phone'] as String? ?? 'unknown'}';
+    final userEmail = user?['email'] as String? ?? '';
+    final isVerified = user?['is_verified'] as bool? ?? false;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Container(
@@ -213,12 +212,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: _nameToColor(_kUserName),
+                    color: _nameToColor(userName),
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    _kUserName[0],
+                    userName[0],
                     style: const TextStyle(
                       color: CupertinoColors.white,
                       fontSize: 26,
@@ -233,12 +232,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _kUserName,
+                        userName,
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: textColor),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        _kUserId,
+                        userId,
                         style: TextStyle(fontSize: 14, color: secondaryText),
                       ),
                     ],
@@ -248,7 +247,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _kIsVerified
+                    color: isVerified
                         ? CupertinoColors.systemGreen.withValues(alpha: 0.15)
                         : CupertinoColors.systemOrange.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
@@ -257,16 +256,16 @@ class _SettingsPageState extends State<SettingsPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _kIsVerified ? '✅' : '⚠️',
+                        isVerified ? '✅' : '⚠️',
                         style: const TextStyle(fontSize: 12),
                       ),
                       const SizedBox(width: 2),
                       Text(
-                        _kIsVerified ? '已认证' : '未认证',
+                        isVerified ? '已认证' : '未认证',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: _kIsVerified ? CupertinoColors.systemGreen : CupertinoColors.systemOrange,
+                          color: isVerified ? CupertinoColors.systemGreen : CupertinoColors.systemOrange,
                         ),
                       ),
                     ],
@@ -281,7 +280,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 Icon(CupertinoIcons.mail, size: 14, color: secondaryText),
                 const SizedBox(width: 6),
                 Text(
-                  _kUserEmail,
+                  userEmail,
                   style: TextStyle(fontSize: 13, color: secondaryText),
                 ),
               ],

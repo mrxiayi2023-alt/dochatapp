@@ -5,10 +5,16 @@ import 'pages/friends_page.dart';
 import 'pages/plaza_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/services_page.dart';
+import 'pages/login_page.dart';
+import 'services/auth_provider.dart';
 
 void main() {
   runApp(const ProviderScope(child: DochatappApp()));
 }
+
+// ---------------------------------------------------------------------------
+// Root App
+// ---------------------------------------------------------------------------
 
 class DochatappApp extends ConsumerWidget {
   const DochatappApp({super.key});
@@ -27,10 +33,60 @@ class DochatappApp extends ConsumerWidget {
           primaryColor: CupertinoColors.black,
         ),
       ),
-      home: const MainScreen(),
+      home: const AppShell(),
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Auth Gate — checks token and shows Login or MainScreen
+// ---------------------------------------------------------------------------
+
+class AppShell extends ConsumerStatefulWidget {
+  const AppShell({super.key});
+
+  @override
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends ConsumerState<AppShell> {
+  @override
+  void initState() {
+    super.initState();
+    // Check for stored token on startup
+    ref.read(authProvider.notifier).checkAuth();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
+
+    switch (authState.status) {
+      case AuthStatus.initial:
+        return const CupertinoPageScaffold(
+          backgroundColor: Color(0xFFF2F2F7),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(CupertinoIcons.mail_solid, size: 48, color: CupertinoColors.activeBlue),
+                SizedBox(height: 16),
+                CupertinoActivityIndicator(),
+              ],
+            ),
+          ),
+        );
+      case AuthStatus.authenticated:
+        return const MainScreen();
+      case AuthStatus.unauthenticated:
+        return const LoginPage();
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Main Tab Screen
+// ---------------------------------------------------------------------------
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
