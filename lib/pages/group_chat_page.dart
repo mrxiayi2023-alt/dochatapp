@@ -1,5 +1,7 @@
 ﻿import 'package:flutter/cupertino.dart';
 import '../models/chat_model.dart';
+import 'chat_detail_page.dart';
+import 'call_page.dart';
 
 // ---------------------------------------------------------------------------
 // Group Message Model
@@ -146,14 +148,22 @@ class _GroupChatPageState extends State<GroupChatPage> {
             CupertinoButton(
               padding: EdgeInsets.zero,
               minimumSize: const Size(40, 40),
-              onPressed: () => print('语音通话'),
+              onPressed: () => Navigator.of(context).push(
+                CupertinoPageRoute(
+                  builder: (_) => CallPage(name: widget.chat.name, callType: CallType.audio),
+                ),
+              ),
               child: const Icon(CupertinoIcons.phone, size: 22),
             ),
             const SizedBox(width: 4),
             CupertinoButton(
               padding: EdgeInsets.zero,
               minimumSize: const Size(40, 40),
-              onPressed: () => print('视频通话'),
+              onPressed: () => Navigator.of(context).push(
+                CupertinoPageRoute(
+                  builder: (_) => CallPage(name: widget.chat.name, callType: CallType.video),
+                ),
+              ),
               child: const Icon(CupertinoIcons.videocam, size: 24),
             ),
           ],
@@ -209,9 +219,19 @@ class _MemberBar extends StatelessWidget {
 
   const _MemberBar({required this.members});
 
+  void _showProfileSheet(BuildContext context, String name) {
+    if (name == '自己') return;
+    showCupertinoModalPopup(
+      context: context,
+      builder: (sheetContext) => CupertinoPageScaffold(
+        navigationBar: const CupertinoNavigationBar(),
+        child: _MemberProfileCard(name: name),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // 直接用 widget 传入的 members，不做任何转换
     final allMembers = members;
     const maxShow = 8;
     final showCount = allMembers.length > maxShow ? maxShow : allMembers.length;
@@ -219,6 +239,7 @@ class _MemberBar extends StatelessWidget {
 
     return Container(
       height: 62,
+      width: double.infinity,
       decoration: const BoxDecoration(
         color: CupertinoColors.white,
         border: Border(
@@ -227,106 +248,290 @@ class _MemberBar extends StatelessWidget {
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 直接遍历 members 渲染每个成员
-              for (int idx = 0; idx < showCount; idx++)
-                Padding(
-                  padding: const EdgeInsets.only(right: 20),
-                  child: GestureDetector(
-                    onTap: () => print('查看成员详情：${allMembers[idx]}'),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // 24px 圆形头像
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: _nameToColor(allMembers[idx]),
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            allMembers[idx].isNotEmpty
-                                ? allMembers[idx][0]
-                                : '?',
-                            style: const TextStyle(
-                              color: CupertinoColors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(
-                            minWidth: 50,
-                            maxWidth: 80,
-                          ),
-                          child: Text(
-                            allMembers[idx],
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: CupertinoColors.systemGrey,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              // 溢出 "+N"
-              if (overflow > 0)
-                GestureDetector(
-                  onTap: () => print('查看全部成员'),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 24,
-                        height: 24,
-                        decoration: const BoxDecoration(
-                          color: CupertinoColors.systemGrey5,
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '+$overflow',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: CupertinoColors.systemGrey,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          minWidth: 50,
-                          maxWidth: 80,
-                        ),
-                        child: const Text(
-                          '更多',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: CupertinoColors.systemGrey,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (int idx = 0; idx < showCount; idx++)
+              _buildMemberItem(context, allMembers[idx]),
+            if (overflow > 0)
+              _buildOverflowItem(context, overflow),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildMemberItem(BuildContext context, String name) {
+    final isSelf = name == '自己';
+    final child = SizedBox(
+      width: 70,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: _nameToColor(name),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              name.isNotEmpty ? name[0] : '?',
+              style: const TextStyle(
+                color: CupertinoColors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            name,
+            style: const TextStyle(
+              fontSize: 10,
+              color: CupertinoColors.systemGrey,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+
+    if (isSelf) return child;
+
+    return GestureDetector(
+      onTap: () => _showProfileSheet(context, name),
+      child: child,
+    );
+  }
+
+  Widget _buildOverflowItem(BuildContext context, int overflow) {
+    return SizedBox(
+      width: 50,
+      child: GestureDetector(
+        onTap: () => print('查看全部成员'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: const BoxDecoration(
+                color: CupertinoColors.systemGrey5,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                '+$overflow',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: CupertinoColors.systemGrey,
+                ),
+              ),
+            ),
+            const SizedBox(height: 3),
+            const Text(
+              '更多',
+              style: TextStyle(
+                fontSize: 10,
+                color: CupertinoColors.systemGrey,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Member Profile Card (bottom sheet)
+// ---------------------------------------------------------------------------
+
+class _MemberProfileCard extends StatelessWidget {
+  final String name;
+
+  const _MemberProfileCard({required this.name});
+
+  void _sendMessage(BuildContext context) {
+    Navigator.of(context).pop(); // close sheet
+    final chat = ChatModel(
+      name: name,
+      initial: name.isNotEmpty ? name[0] : '?',
+      lastMessage: '',
+      time: '',
+      avatarColor: _nameToColor(name),
+    );
+    Navigator.of(context).push(
+      CupertinoPageRoute(builder: (_) => ChatDetailPage(chat: chat)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _nameToColor(name);
+    // Generate a pinyin-like ID from the name
+    final id = '@${name.toLowerCase().replaceAll(RegExp(r'\s+'), '')}';
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag indicator
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 20),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey4,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Avatar
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                name.isNotEmpty ? name[0] : '?',
+                style: const TextStyle(
+                  color: CupertinoColors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Name
+            Text(
+              name,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: CupertinoColors.black,
+              ),
+            ),
+            const SizedBox(height: 4),
+            // ID
+            Text(
+              id,
+              style: const TextStyle(
+                fontSize: 14,
+                color: CupertinoColors.systemGrey,
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Action buttons row
+            Row(
+              children: [
+                Expanded(
+                  child: _ActionButton(
+                    icon: CupertinoIcons.chat_bubble,
+                    label: '发消息',
+                    onTap: () => _sendMessage(context),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _ActionButton(
+                    icon: CupertinoIcons.phone,
+                    label: '语音通话',
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).push(
+                        CupertinoPageRoute(
+                          builder: (_) => CallPage(name: name, callType: CallType.audio),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _ActionButton(
+                    icon: CupertinoIcons.videocam,
+                    label: '视频通话',
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).push(
+                        CupertinoPageRoute(
+                          builder: (_) => CallPage(name: name, callType: CallType.video),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Cancel button
+            SizedBox(
+              width: double.infinity,
+              child: CupertinoButton(
+                borderRadius: BorderRadius.circular(12),
+                color: CupertinoColors.systemGrey6,
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text(
+                  '取消',
+                  style: TextStyle(
+                    color: CupertinoColors.systemGrey,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      borderRadius: BorderRadius.circular(12),
+      color: CupertinoColors.systemGrey6,
+      pressedOpacity: 0.5,
+      onPressed: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 24, color: CupertinoColors.activeBlue),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: CupertinoColors.activeBlue,
+            ),
+          ),
+        ],
       ),
     );
   }

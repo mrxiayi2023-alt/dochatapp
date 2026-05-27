@@ -4,6 +4,8 @@
 // Feed item data model
 // ---------------------------------------------------------------------------
 
+enum _FeedCategory { follow, recommend, local }
+
 class _FeedItem {
   final String name;
   final String initial;
@@ -11,6 +13,7 @@ class _FeedItem {
   final String content;
   final int imageCount;
   final bool isGroup;
+  final _FeedCategory category;
   int likes;
   int comments;
   final String time;
@@ -22,6 +25,7 @@ class _FeedItem {
     required this.content,
     this.imageCount = 0,
     this.isGroup = false,
+    this.category = _FeedCategory.recommend,
     this.likes = 0,
     this.comments = 0,
     required this.time,
@@ -39,6 +43,7 @@ final List<_FeedItem> _feedItems = [
     color: CupertinoColors.systemBlue,
     content: '今天天气真好，出去走走！',
     imageCount: 1,
+    category: _FeedCategory.follow,
     likes: 12,
     comments: 3,
     time: '2小时前',
@@ -48,6 +53,7 @@ final List<_FeedItem> _feedItems = [
     initial: '李',
     color: CupertinoColors.systemGreen,
     content: '分享一篇好文章：Flutter开发技巧',
+    category: _FeedCategory.follow,
     likes: 8,
     comments: 1,
     time: '3小时前',
@@ -57,6 +63,7 @@ final List<_FeedItem> _feedItems = [
     initial: '王',
     color: CupertinoColors.systemOrange,
     content: '【视频】周末Vlog',
+    category: _FeedCategory.recommend,
     likes: 25,
     comments: 7,
     time: '5小时前',
@@ -67,6 +74,7 @@ final List<_FeedItem> _feedItems = [
     color: CupertinoColors.systemGreen,
     content: '群文件已更新，大家查看',
     isGroup: true,
+    category: _FeedCategory.recommend,
     likes: 5,
     comments: 2,
     time: '昨天',
@@ -77,6 +85,7 @@ final List<_FeedItem> _feedItems = [
     color: CupertinoColors.systemPurple,
     content: '杭州西湖，周末打卡！',
     imageCount: 3,
+    category: _FeedCategory.local,
     likes: 18,
     comments: 4,
     time: '昨天',
@@ -87,6 +96,7 @@ final List<_FeedItem> _feedItems = [
     color: CupertinoColors.systemPink,
     content: '推荐这家餐厅，味道超赞',
     imageCount: 1,
+    category: _FeedCategory.local,
     likes: 10,
     comments: 0,
     time: '2天前',
@@ -107,7 +117,27 @@ class PlazaPage extends StatefulWidget {
 class _PlazaPageState extends State<PlazaPage> {
   int _selectedSegment = 0;
   late List<_FeedItem> _items;
-  final Set<int> _likedSet = {};
+  final Set<String> _likedNames = {};
+
+  /// Map raw index from demo data to the display index within filtered list.
+  int _globalIndex(int filteredIndex) {
+    final filtered = _getFilteredItems();
+    if (filteredIndex < 0 || filteredIndex >= filtered.length) return filteredIndex;
+    return _items.indexOf(filtered[filteredIndex]);
+  }
+
+  List<_FeedItem> _getFilteredItems() {
+    switch (_selectedSegment) {
+      case 0: // 关注
+        return _items.where((e) => e.category == _FeedCategory.follow).toList();
+      case 1: // 推荐 — 全部
+        return _items;
+      case 2: // 同城
+        return _items.where((e) => e.category == _FeedCategory.local).toList();
+      default:
+        return _items;
+    }
+  }
 
   @override
   void initState() {
@@ -119,6 +149,7 @@ class _PlazaPageState extends State<PlazaPage> {
       content: e.content,
       imageCount: e.imageCount,
       isGroup: e.isGroup,
+      category: e.category,
       likes: e.likes,
       comments: e.comments,
       time: e.time,
@@ -129,14 +160,16 @@ class _PlazaPageState extends State<PlazaPage> {
     await Future.delayed(const Duration(milliseconds: 800));
   }
 
-  void _toggleLike(int index) {
+  void _toggleLike(int filteredIndex) {
+    final gi = _globalIndex(filteredIndex);
+    final name = _items[gi].name;
     setState(() {
-      if (_likedSet.contains(index)) {
-        _likedSet.remove(index);
-        _items[index].likes--;
+      if (_likedNames.contains(name)) {
+        _likedNames.remove(name);
+        _items[gi].likes--;
       } else {
-        _likedSet.add(index);
-        _items[index].likes++;
+        _likedNames.add(name);
+        _items[gi].likes++;
       }
     });
   }
@@ -219,14 +252,16 @@ class _PlazaPageState extends State<PlazaPage> {
               SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
+                    final items = _getFilteredItems();
+                    final item = items[index];
                     return _FeedCard(
-                      item: _items[index],
-                      isLiked: _likedSet.contains(index),
+                      item: item,
+                      isLiked: _likedNames.contains(item.name),
                       onLike: () => _toggleLike(index),
-                      onTap: () => print('查看动态详情：${_items[index].name} - ${_items[index].content}'),
+                      onTap: () => print('查看动态详情：${item.name} - ${item.content}'),
                     );
                   },
-                  childCount: _items.length,
+                  childCount: _getFilteredItems().length,
                 ),
               ),
               // Bottom spacing
@@ -292,6 +327,25 @@ class _PlazaPageState extends State<PlazaPage> {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: coming-soon bottom sheet
+// ---------------------------------------------------------------------------
+
+void _showComingSoon(BuildContext context, String feature) {
+  showCupertinoModalPopup(
+    context: context,
+    builder: (context) => CupertinoActionSheet(
+      title: Text('$feature页面（即将上线）'),
+      message: const Text('功能正在开发中，敬请期待'),
+      cancelButton: CupertinoActionSheetAction(
+        isDefaultAction: true,
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('知道了'),
+      ),
+    ),
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Feed Card
 // ---------------------------------------------------------------------------
 
@@ -337,7 +391,7 @@ class _FeedCard extends StatelessWidget {
             if (item.imageCount > 0)
               _buildImageGrid(),
             // Action buttons
-            _buildActions(),
+            _buildActions(context),
           ],
         ),
       ),
@@ -492,7 +546,7 @@ class _FeedCard extends StatelessWidget {
     return remaining >= crossAxisCount ? crossAxisCount : remaining;
   }
 
-  Widget _buildActions() {
+  Widget _buildActions(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
       child: Row(
@@ -501,6 +555,8 @@ class _FeedCard extends StatelessWidget {
           CupertinoButton(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             borderRadius: BorderRadius.circular(20),
+            pressedOpacity: 0.5,
+            color: CupertinoColors.systemGrey6,
             onPressed: onLike,
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -524,7 +580,32 @@ class _FeedCard extends StatelessWidget {
           CupertinoButton(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             borderRadius: BorderRadius.circular(20),
-            onPressed: () => print('评论：${item.name}'),
+            pressedOpacity: 0.5,
+            color: CupertinoColors.systemGrey6,
+            onPressed: () {
+              showCupertinoModalPopup(
+                context: context,
+                builder: (ctx) => CupertinoActionSheet(
+                  title: const Text('评论'),
+                  message: const Text('评论功能即将上线'),
+                  actions: [
+                    CupertinoActionSheetAction(
+                      onPressed: () { Navigator.of(ctx).pop(); print('写评论'); },
+                      child: const Text('写评论'),
+                    ),
+                    CupertinoActionSheetAction(
+                      onPressed: () { Navigator.of(ctx).pop(); print('查看所有评论'); },
+                      child: const Text('查看所有评论'),
+                    ),
+                  ],
+                  cancelButton: CupertinoActionSheetAction(
+                    isDefaultAction: true,
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('取消'),
+                  ),
+                ),
+              );
+            },
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -537,7 +618,32 @@ class _FeedCard extends StatelessWidget {
           CupertinoButton(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             borderRadius: BorderRadius.circular(20),
-            onPressed: () => print('转发：${item.name}'),
+            pressedOpacity: 0.5,
+            color: CupertinoColors.systemGrey6,
+            onPressed: () {
+              showCupertinoModalPopup(
+                context: context,
+                builder: (ctx) => CupertinoActionSheet(
+                  title: const Text('转发'),
+                  message: const Text('转发功能即将上线'),
+                  actions: [
+                    CupertinoActionSheetAction(
+                      onPressed: () { Navigator.of(ctx).pop(); print('转发到聊天'); },
+                      child: const Text('转发到聊天'),
+                    ),
+                    CupertinoActionSheetAction(
+                      onPressed: () { Navigator.of(ctx).pop(); print('转发到广场'); },
+                      child: const Text('转发到广场'),
+                    ),
+                  ],
+                  cancelButton: CupertinoActionSheetAction(
+                    isDefaultAction: true,
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('取消'),
+                  ),
+                ),
+              );
+            },
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [

@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/cupertino.dart';
 import '../models/chat_model.dart';
+import 'call_page.dart';
 
 // ---------------------------------------------------------------------------
 // Message Model
@@ -128,14 +129,22 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             CupertinoButton(
               padding: EdgeInsets.zero,
               minimumSize: const Size(40, 40),
-              onPressed: () => print('语音通话'),
+              onPressed: () => Navigator.of(context).push(
+                CupertinoPageRoute(
+                  builder: (_) => CallPage(name: widget.chat.name, callType: CallType.audio),
+                ),
+              ),
               child: const Icon(CupertinoIcons.phone, size: 22),
             ),
             const SizedBox(width: 4),
             CupertinoButton(
               padding: EdgeInsets.zero,
               minimumSize: const Size(40, 40),
-              onPressed: () => print('视频通话'),
+              onPressed: () => Navigator.of(context).push(
+                CupertinoPageRoute(
+                  builder: (_) => CallPage(name: widget.chat.name, callType: CallType.video),
+                ),
+              ),
               child: const Icon(CupertinoIcons.videocam, size: 24),
             ),
           ],
