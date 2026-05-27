@@ -1,14 +1,16 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'pages/chat_page.dart';
 
 void main() {
-  runApp(const DochatappApp());
+  runApp(const ProviderScope(child: DochatappApp()));
 }
 
-class DochatappApp extends StatelessWidget {
+class DochatappApp extends ConsumerWidget {
   const DochatappApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return CupertinoApp(
       title: '电邮',
       debugShowCheckedModeBanner: false,
@@ -100,45 +102,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
-class ChatPage extends StatelessWidget {
-  const ChatPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.white,
-      child: CustomScrollView(
-        slivers: [
-          CupertinoSliverNavigationBar(
-            largeTitle: const Text('聊天'),
-          ),
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(CupertinoIcons.chat_bubble_2, size: 64, color: CupertinoColors.systemGrey4),
-                    const SizedBox(height: 16),
-                    Text(
-                      '聊天列表',
-                      style: TextStyle(
-                        fontSize: 17,
-                        color: CupertinoColors.systemGrey,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class FriendsPage extends StatelessWidget {
   const FriendsPage({super.key});
