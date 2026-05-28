@@ -1,6 +1,8 @@
 ﻿import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tencent_cloud_chat_sdk/tencent_im_sdk_plugin.dart';
+import 'package:tencent_cloud_chat_sdk/enum/log_level_enum.dart';
+import 'package:tencent_cloud_chat_sdk/enum/V2TimSDKListener.dart';
 import 'pages/chat_page.dart';
 import 'pages/friends_page.dart';
 import 'pages/plaza_page.dart';
@@ -13,7 +15,7 @@ void main() {
   // 初始化腾讯IM（占位值，后续替换真实SDKAppID和userSig）
   TencentImSDKPlugin.v2TIMManager.initSDK(
     sdkAppID: 1400000000,
-    loglevel: 0,
+    loglevel: LogLevelEnum.V2TIM_LOG_DEBUG,
     listener: V2TimSDKListener(),
   );
   runApp(const ProviderScope(child: DochatappApp()));
