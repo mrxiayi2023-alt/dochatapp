@@ -21,7 +21,8 @@ const List<_Service> _services = [
   _Service(emoji: '🏠', name: '电邮找房', description: '直连房东，无中介费'),
   _Service(emoji: '💕', name: '电邮婚恋', description: '真实交友，恋爱分数'),
   _Service(emoji: '💼', name: '电邮招聘', description: '企业直招，信誉保障'),
-  _Service(emoji: '📧', name: '邮箱', description: 'App账号即邮箱，注册即开通'),
+  _Service(emoji: '📧', name: '电子邮箱', description: '账号即邮箱，注册即开通'),
+  _Service(emoji: '🛒', name: '电邮商城', description: '闲置有价，工农直供'),
 ];
 
 class _RecentItem {
@@ -34,7 +35,8 @@ class _RecentItem {
 
 const List<_RecentItem> _recentItems = [
   _RecentItem(emoji: '🔒', name: '担保履约', time: '2小时前'),
-  _RecentItem(emoji: '📧', name: '邮箱', time: '昨天'),
+  _RecentItem(emoji: '📧', name: '电子邮箱', time: '昨天'),
+  _RecentItem(emoji: '🛒', name: '电邮商城', time: '刚刚'),
 ];
 
 // ---------------------------------------------------------------------------
@@ -58,10 +60,10 @@ class ServicesPage extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             sliver: SliverGrid(
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
+                crossAxisCount: 3,
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
-                childAspectRatio: 1.15,
+                childAspectRatio: 1.0,
               ),
               delegate: SliverChildBuilderDelegate(
                 (context, index) => _ServiceCard(service: _services[index]),
