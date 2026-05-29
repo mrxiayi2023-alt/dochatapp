@@ -14,6 +14,8 @@ import 'call_page.dart';
 // ---------------------------------------------------------------------------
 
 class Message {
+  static int _nextId = 0;
+
   final String id;
   final String text;
   final bool isMe;
@@ -32,7 +34,7 @@ class Message {
     this.isRead = false,
     this.isRecalled = false,
     DateTime? sentAt,
-  }) : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+  }) : id = id ?? 'msg_${DateTime.now().millisecondsSinceEpoch}_${_nextId++}',
        sentAt = sentAt ?? DateTime.now();
 
   /// 创建一份拷贝，可覆盖部分字段
@@ -166,36 +168,18 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
   // -----------------------------------------------------------------------
 
   /// 删除指定索引的消息
-  void _onDeleteMessage(int index) {
-    // 弹出删除选项子菜单（单向 / 双向）
-    showCupertinoModalPopup(
-      context: context,
-      builder: (ctx) => CupertinoActionSheet(
-        title: const Text('删除消息'),
-        actions: [
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              setState(() => _messages.removeAt(index));
-            },
-            child: const Text('单向删除'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              // TODO: 调用后端 API 双向删除
-              // ApiService.instance.deleteMessage(_messages[index].id, forBoth: true);
-              setState(() => _messages.removeAt(index));
-            },
-            child: const Text('双向删除'),
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          child: const Text('取消'),
-          onPressed: () => Navigator.of(ctx).pop(),
-        ),
-      ),
-    );
+  /// [forBoth] = true 时为双向删除（预留后端 API 调用）
+  void _onDeleteMessage(int index, {bool forBoth = false}) {
+    final id = _messages[index].id;
+    if (forBoth) {
+      // TODO: 调用后端 API 双向删除
+      // ApiService.instance.deleteMessage(id, forBoth: true);
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() => _messages.removeWhere((m) => m.id == id));
+      }
+    });
   }
 
   // -----------------------------------------------------------------------
@@ -448,7 +432,8 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
                               onRecall: msg.canRecall
                                   ? () => _onRecallMessage(index)
                                   : null,
-                              onDelete: () => _onDeleteMessage(index),
+                              onDeleteLocal: () => _onDeleteMessage(index, forBoth: false),
+                              onDeleteBoth: () => _onDeleteMessage(index, forBoth: true),
                             ),
                           ],
                         );
@@ -583,48 +568,61 @@ class _BottomBarState extends State<_BottomBar> {
 
 class _MessageBubble extends StatelessWidget {
   final Message message;
-  final VoidCallback? onRecall; // 撤回回调（null = 不可撤回）
-  final VoidCallback onDelete;  // 删除回调（始终可用）
+  final VoidCallback? onRecall;        // 撤回回调（null = 不可撤回）
+  final VoidCallback? onDeleteLocal;   // 单向删除回调
+  final VoidCallback? onDeleteBoth;    // 双向删除回调
 
   const _MessageBubble({
     required this.message,
     this.onRecall,
-    required this.onDelete,
+    this.onDeleteLocal,
+    this.onDeleteBoth,
   });
 
   /// 弹出消息操作 ActionSheet
   void _showMessageActions(BuildContext context) {
-    final actions = <Widget>[
-      // 撤回（仅可撤回的消息显示）
-      if (onRecall != null)
-        CupertinoActionSheetAction(
-          onPressed: () {
-            Navigator.of(context).pop();
-            onRecall?.call();
-          },
-          child: const Text('撤回'),
-        ),
-      // 删除（始终显示）
-      CupertinoActionSheetAction(
-        isDestructiveAction: true,
-        onPressed: () {
-          Navigator.of(context).pop();
-          onDelete();
-        },
-        child: const Text('删除'),
-      ),
-    ];
-
     showCupertinoModalPopup(
       context: context,
-      builder: (ctx) => CupertinoActionSheet(
-        title: const Text('选择操作'),
-        actions: actions,
-        cancelButton: CupertinoActionSheetAction(
-          child: const Text('取消'),
-          onPressed: () => Navigator.of(ctx).pop(),
-        ),
-      ),
+      builder: (ctx) {
+        final actions = <Widget>[
+          // 撤回（仅可撤回的消息显示）
+          if (onRecall != null)
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                onRecall?.call();
+              },
+              child: const Text('撤回'),
+            ),
+          // 单向删除
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              onDeleteLocal?.call();
+            },
+            child: const Text('单向删除'),
+          ),
+          // 双向删除
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              onDeleteBoth?.call();
+            },
+            child: const Text('双向删除'),
+          ),
+        ];
+
+        return CupertinoActionSheet(
+          title: const Text('选择操作'),
+          actions: actions,
+          cancelButton: CupertinoActionSheetAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+        );
+      },
     );
   }
 
