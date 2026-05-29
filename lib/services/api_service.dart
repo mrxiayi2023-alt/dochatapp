@@ -164,6 +164,47 @@ class ApiService {
   }
 
   // -------------------------------------------------------------------------
+  // Friend API
+  // -------------------------------------------------------------------------
+
+  /// Send a friend request by phone number.
+  Future<void> sendFriendRequest(String toPhone) async {
+    await _dio.post('/friends/request', data: {'to_phone': toPhone});
+  }
+
+  /// Get incoming friend requests.
+  Future<List<dynamic>> getFriendRequests() async {
+    final response = await _dio.get('/friends/requests');
+    final body = response.data as Map<String, dynamic>?;
+    if (body == null) throw Exception('empty response');
+    if (body['code'] != 200) throw Exception(body['message'] ?? 'error');
+    final data = body['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  /// Accept a friend request.
+  Future<void> acceptFriendRequest(String requestId) async {
+    await _dio.post('/friends/accept', data: {'request_id': requestId});
+  }
+
+  /// Reject a friend request.
+  Future<void> rejectFriendRequest(String requestId) async {
+    await _dio.post('/friends/reject', data: {'request_id': requestId});
+  }
+
+  /// Get the friend list.
+  Future<List<dynamic>> getFriendList() async {
+    final response = await _dio.get('/friends/list');
+    final body = response.data as Map<String, dynamic>?;
+    if (body == null) throw Exception('empty response');
+    if (body['code'] != 200) throw Exception(body['message'] ?? 'error');
+    final data = body['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  // -------------------------------------------------------------------------
   // Internal helpers
   // -------------------------------------------------------------------------
 

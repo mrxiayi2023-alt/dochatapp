@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_model.dart';
 import '../services/api_service.dart';
+import '../services/auth_provider.dart';
 import 'chat_detail_page.dart';
 import 'group_chat_page.dart';
 
@@ -32,6 +33,22 @@ Color _colorFromName(String name) {
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key});
 
+  /// 好友申请通过后，由 friends_page 调用，把新好友作为一条新会话加入聊天列表
+  static final List<ChatModel> _pendingFriendConversations = <ChatModel>[];
+
+  /// 触发聊天列表刷新的通知器
+  static final ValueNotifier<int> friendConversationNotifier = ValueNotifier<int>(0);
+
+  /// 外部（friends_page）调用此方法添加新好友会话
+  static void addFriendConversation(ChatModel chat) {
+    // 避免重复添加
+    final exists = _pendingFriendConversations.any((c) => c.targetUserId == chat.targetUserId);
+    if (!exists) {
+      _pendingFriendConversations.add(chat);
+      friendConversationNotifier.value++;
+    }
+  }
+
   @override
   ConsumerState<ChatPage> createState() => _ChatPageState();
 }
@@ -43,113 +60,161 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   @override
   void initState() {
     super.initState();
-    // Ensure token is loaded before fetching conversations
+    // 监听好友申请通过的通知
+    ChatPage.friendConversationNotifier.addListener(_onFriendConversationAdded);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadConversations());
+  }
+
+  @override
+  void dispose() {
+    ChatPage.friendConversationNotifier.removeListener(_onFriendConversationAdded);
+    super.dispose();
+  }
+
+  /// 好友通过通知监听：立即把新好友追加到 _chats 列表
+  void _onFriendConversationAdded() {
+    if (!mounted) return;
+    // 立即将 pending 中的好友追加到聊天列表（无需等待异步加载）
+    _appendPendingFriendConversations();
+    // 同时触发一次完整的列表刷新（加载 API 数据，合并 pending 好友）
+    _loadConversations();
   }
 
   // -----------------------------------------------------------------------
   // Data loading
   // -----------------------------------------------------------------------
 
-  Future<void> _loadConversations() async {
-    // 直接使用硬编码数据，不请求后端 API
-    _fallbackToDemo();
-
-    // // 以下为 API 调用逻辑（暂时注释掉）
-    // // Read current auth to ensure token is available
-    // final authState = ref.read(authProvider);
-    // if (authState.token == null) {
-    //   _fallbackToDemo();
-    //   return;
-    // }
-    //
-    // // Sync ApiService token from auth provider
-    // if (ApiService.instance.token == null && authState.token != null) {
-    //   await ApiService.instance.saveToken(authState.token!);
-    // }
-    //
-    // try {
-    //   final data = await ApiService.instance.getConversations();
-    //   final chats = data.map<ChatModel>((c) {
-    //     final name = c['with_nickname'] as String? ?? '';
-    //     return ChatModel(
-    //       name: name,
-    //       lastMessage: c['last_message'] as String? ?? '',
-    //       time: c['last_time'] as String? ?? '',
-    //       unreadCount: c['unread_count'] as int? ?? 0,
-    //       initial: name.isNotEmpty ? name.characters.first : '?',
-    //       avatarColor: _colorFromName(name),
-    //       targetUserId: c['with_user_id'] as String? ?? '',
-    //     );
-    //   }).toList();
-    //
-    //   if (mounted) {
-    //     setState(() {
-    //       _chats = chats;
-    //       _loading = false;
-    //     });
-    //   }
-    // } catch (_) {
-    //   // API failed — fall back to hardcoded demo data
-    //   _fallbackToDemo();
-    // }
+  /// 把 _pendingFriendConversations 中尚未在 _chats 里的好友追加进去，并 setState
+  void _appendPendingFriendConversations() {
+    if (ChatPage._pendingFriendConversations.isEmpty) return;
+    bool changed = false;
+    for (final friendChat in ChatPage._pendingFriendConversations) {
+      final exists = _chats.any((c) => c.targetUserId == friendChat.targetUserId);
+      if (!exists) {
+        _chats.add(friendChat);
+        changed = true;
+      }
+    }
+    if (changed && mounted) {
+      setState(() {});
+    }
   }
 
+  /// 从 API 加载会话列表，并追加 pending 好友会话
+  Future<void> _loadConversations() async {
+    // Read current auth to ensure token is available
+    final authState = ref.read(authProvider);
+    if (authState.token == null) {
+      _fallbackToDemo();
+      return;
+    }
+
+    // Sync ApiService token from auth provider
+    if (ApiService.instance.token == null && authState.token != null) {
+      await ApiService.instance.saveToken(authState.token!);
+    }
+
+    try {
+      final data = await ApiService.instance.getConversations();
+      final chats = data.map<ChatModel>((c) {
+        final name = c['with_nickname'] as String? ?? '';
+        return ChatModel(
+          name: name,
+          lastMessage: c['last_message'] as String? ?? '',
+          time: c['last_time'] as String? ?? '',
+          unreadCount: c['unread_count'] as int? ?? 0,
+          initial: name.isNotEmpty ? name.characters.first : '?',
+          avatarColor: _colorFromName(name),
+          targetUserId: c['with_user_id'] as String? ?? '',
+        );
+      }).toList();
+
+      // 追加 pending 好友会话（去重）
+      for (final friendChat in ChatPage._pendingFriendConversations) {
+        final exists = chats.any((c) => c.targetUserId == friendChat.targetUserId);
+        if (!exists) {
+          chats.add(friendChat);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _chats = chats;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      // API failed — fall back to hardcoded demo data
+      _fallbackToDemo();
+    }
+  }
+
+  /// 使用硬编码 demo 数据，并追加 pending 好友会话
   void _fallbackToDemo() {
     if (!mounted) return;
+    final chats = <ChatModel>[
+      ChatModel(
+        name: '张三',
+        lastMessage: '周末一起去杭州西湖旅游吧？',
+        time: '14:30',
+        unreadCount: 3,
+        initial: '张',
+        avatarColor: CupertinoColors.systemBlue,
+      ),
+      ChatModel(
+        name: '项目讨论群',
+        lastMessage: '李四：[文件] 设计稿v3.pdf',
+        time: '09:15',
+        isGroup: true,
+        initial: '项',
+        avatarColor: CupertinoColors.systemGreen,
+        members: const ['李四', '王五', '赵六', '钱七', '自己'],
+      ),
+      ChatModel(
+        name: '王五',
+        lastMessage: '[图片]',
+        time: '昨天',
+        unreadCount: 1,
+        initial: '王',
+        avatarColor: CupertinoColors.systemOrange,
+      ),
+      ChatModel(
+        name: '赵六',
+        lastMessage: '好的，明天见',
+        time: '昨天',
+        initial: '赵',
+        avatarColor: CupertinoColors.systemPurple,
+      ),
+      ChatModel(
+        name: '设计小组',
+        lastMessage: '钱七：[视频]',
+        time: '周二',
+        unreadCount: 5,
+        isGroup: true,
+        initial: '设',
+        avatarColor: CupertinoColors.systemPink,
+        members: const ['钱七', '孙八', '周九', '吴十', '自己'],
+      ),
+      ChatModel(
+        name: '孙八',
+        lastMessage: '谢谢，收到了',
+        time: '周一',
+        initial: '孙',
+        avatarColor: CupertinoColors.systemRed,
+      ),
+    ];
+
+    // 追加 pending 好友会话（去重）
+    for (final friendChat in ChatPage._pendingFriendConversations) {
+      final exists = chats.any((c) => c.targetUserId == friendChat.targetUserId);
+      if (!exists) {
+        chats.add(friendChat);
+      }
+    }
+
     setState(() {
       _loading = false;
-      _chats = [
-        ChatModel(
-          name: '张三',
-          lastMessage: '周末一起去杭州西湖旅游吧？',
-          time: '14:30',
-          unreadCount: 3,
-          initial: '张',
-          avatarColor: CupertinoColors.systemBlue,
-        ),
-        ChatModel(
-          name: '项目讨论群',
-          lastMessage: '李四：[文件] 设计稿v3.pdf',
-          time: '09:15',
-          isGroup: true,
-          initial: '项',
-          avatarColor: CupertinoColors.systemGreen,
-          members: const ['李四', '王五', '赵六', '钱七', '自己'],
-        ),
-        ChatModel(
-          name: '王五',
-          lastMessage: '[图片]',
-          time: '昨天',
-          unreadCount: 1,
-          initial: '王',
-          avatarColor: CupertinoColors.systemOrange,
-        ),
-        ChatModel(
-          name: '赵六',
-          lastMessage: '好的，明天见',
-          time: '昨天',
-          initial: '赵',
-          avatarColor: CupertinoColors.systemPurple,
-        ),
-        ChatModel(
-          name: '设计小组',
-          lastMessage: '钱七：[视频]',
-          time: '周二',
-          unreadCount: 5,
-          isGroup: true,
-          initial: '设',
-          avatarColor: CupertinoColors.systemPink,
-          members: const ['钱七', '孙八', '周九', '吴十', '自己'],
-        ),
-        ChatModel(
-          name: '孙八',
-          lastMessage: '谢谢，收到了',
-          time: '周一',
-          initial: '孙',
-          avatarColor: CupertinoColors.systemRed,
-        ),
-      ];
+      _chats = chats;
     });
   }
 

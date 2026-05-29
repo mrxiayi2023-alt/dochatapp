@@ -32,7 +32,7 @@ func main() {
 	log.Println("PostgreSQL connected successfully")
 
 	// Auto-migrate
-	if err := db.AutoMigrate(&model.User{}, &model.Message{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.Message{}, &model.FriendRequest{}, &model.Friend{}); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
 	log.Println("Database migration completed")
@@ -44,10 +44,13 @@ func main() {
 	// Initialize layers
 	userRepo := repository.NewUserRepository(db)
 	msgRepo := repository.NewMessageRepository(db)
+	friendRepo := repository.NewFriendRepository(db)
 	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret)
 	msgSvc := service.NewMessageService(msgRepo, hub)
+	friendSvc := service.NewFriendService(friendRepo, userRepo)
 	authHdr := handler.NewAuthHandler(authSvc)
 	msgHdr := handler.NewMessageHandler(msgSvc)
+	friendHdr := handler.NewFriendHandler(friendSvc)
 
 	// Gin engine
 	r := gin.Default()
@@ -90,6 +93,17 @@ func main() {
 		msgs.POST("/send", msgHdr.Send)
 		msgs.GET("/conversations", msgHdr.Conversations)
 		msgs.GET("/chat", msgHdr.ChatHistory)
+	}
+
+	// Friend routes (protected)
+	friends := api.Group("/friends")
+	friends.Use(jwt)
+	{
+		friends.POST("/request", friendHdr.SendRequest)
+		friends.GET("/requests", friendHdr.GetIncomingRequests)
+		friends.POST("/accept", friendHdr.AcceptRequest)
+		friends.POST("/reject", friendHdr.RejectRequest)
+		friends.GET("/list", friendHdr.GetFriends)
 	}
 
 	// WebSocket route

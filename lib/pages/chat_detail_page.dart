@@ -23,6 +23,7 @@ class Message {
   final String fromId;
   final bool isRead; // true = recipient has read (shown as ✓✓ blue)
   final bool isRecalled; // 是否已被撤回
+  final bool isNew; // 对方发来的新消息（未读标记，进入页面后清除）
   final DateTime sentAt; // 发送时间（用于 24h 撤回判断）
 
   Message({
@@ -33,12 +34,13 @@ class Message {
     this.fromId = '',
     this.isRead = false,
     this.isRecalled = false,
+    this.isNew = false,
     DateTime? sentAt,
   }) : id = id ?? 'msg_${DateTime.now().millisecondsSinceEpoch}_${_nextId++}',
        sentAt = sentAt ?? DateTime.now();
 
   /// 创建一份拷贝，可覆盖部分字段
-  Message copyWith({bool? isRead, bool? isRecalled}) {
+  Message copyWith({bool? isRead, bool? isRecalled, bool? isNew}) {
     return Message(
       id: id,
       text: text,
@@ -47,6 +49,7 @@ class Message {
       fromId: fromId,
       isRead: isRead ?? this.isRead,
       isRecalled: isRecalled ?? this.isRecalled,
+      isNew: isNew ?? this.isNew,
       sentAt: sentAt,
     );
   }
@@ -140,12 +143,18 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
       // 后端未实现，忽略
     }
 
-    // 2) 本地状态：将我发送的、未读的消息标记为已读（模拟已送达/已读回执）
+    // 2) 本地状态标记
     if (mounted) {
       setState(() {
         for (int i = 0; i < _messages.length; i++) {
-          if (_messages[i].isMe && !_messages[i].isRead) {
-            _messages[i] = _messages[i].copyWith(isRead: true);
+          final msg = _messages[i];
+          if (msg.isMe && !msg.isRead) {
+            // 将我发送的、未读的消息标记为已读（已读回执）
+            _messages[i] = msg.copyWith(isRead: true);
+          }
+          if (!msg.isMe && msg.isNew) {
+            // 清除对方发来的新消息标记
+            _messages[i] = msg.copyWith(isNew: false);
           }
         }
       });
@@ -256,15 +265,15 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     final now = DateTime.now();
     final demoMessages = [
       Message(text: '你好，周末有空吗？', isMe: false, time: '14:30',
-          sentAt: now.subtract(const Duration(hours: 26))),
+          sentAt: now.subtract(const Duration(hours: 26)), isNew: true),
       Message(text: '有空啊，怎么了？', isMe: true, time: '14:32', isRead: true,
           sentAt: now.subtract(const Duration(hours: 25))), // >24h → 不可撤回
       Message(text: '周末一起去杭州西湖旅游吧？', isMe: false, time: '14:33',
-          sentAt: now.subtract(const Duration(hours: 2))),
+          sentAt: now.subtract(const Duration(hours: 2)), isNew: true),
       Message(text: '好啊！我早就想去了', isMe: true, time: '14:33', isRead: true,
           sentAt: now.subtract(const Duration(hours: 1))), // <24h → 可撤回
       Message(text: '我查了攻略，可以坐船游湖，还能去灵隐寺', isMe: false, time: '14:35',
-          sentAt: now.subtract(const Duration(minutes: 45))),
+          sentAt: now.subtract(const Duration(minutes: 45)), isNew: true),
       Message(text: '太棒了，那我订酒店', isMe: true, time: '14:36', isRead: false,
           sentAt: now.subtract(const Duration(minutes: 30))), // <24h → 可撤回
       Message(text: 'ok，到时候见👋', isMe: false, time: '14:37',
@@ -675,6 +684,19 @@ class _MessageBubble extends StatelessWidget {
               isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            // 新消息红点（对方发来的未读消息）
+            if (!isMe && message.isNew)
+              Padding(
+                padding: const EdgeInsets.only(right: 4, bottom: 6),
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: CupertinoColors.destructiveRed,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
             // Left tail for incoming
             if (!isMe)
               CustomPaint(
