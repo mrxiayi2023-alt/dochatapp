@@ -85,13 +85,14 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
   final List<Message> _messages = [];
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final WebSocketService _wsService = WebSocketService();
   bool _loadingHistory = true;
   bool _useDemoFallback = false;
 
-  // ---- 输入中状态模拟 ----
+  // ---- 输入中状态 ----
+  bool _isSelfTyping = false;  // 自己是否正在输入
   bool _isOtherTyping = false; // 对方是否正在输入
-  Timer? _typingSimulationTimer; // 停止输入3秒后自动隐藏
+  Timer? _selfTypingTimer;     // 自己停止输入3秒后自动隐藏
+  Timer? _otherTypingTimer;    // 对方停止输入3秒后自动隐藏
 
   @override
   void initState() {
@@ -105,18 +106,19 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     _textController.removeListener(_onTextChanged);
     _textController.dispose();
     _scrollController.dispose();
-    _typingSimulationTimer?.cancel();
-    _wsService.onMessage = null;
+    _selfTypingTimer?.cancel();
+    _otherTypingTimer?.cancel();
+    WebSocketService.shared.offMessage(_onWsMessage);
     super.dispose();
   }
 
   Future<void> _initChat() async {
-    // Connect WebSocket
+    // Register WebSocket listener for incoming messages
     final authState = ref.read(authProvider);
     final myId = authState.user?['id'] as String?;
     if (myId != null) {
-      _wsService.onMessage = _onWsMessage;
-      await _wsService.connect(myId);
+      WebSocketService.shared.onMessage(_onWsMessage);
+      await WebSocketService.shared.connect(myId);
     }
 
     // Load chat history from API
@@ -192,31 +194,69 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
   }
 
   // -----------------------------------------------------------------------
-  // 输入中状态模拟
+  // 输入中状态
   // -----------------------------------------------------------------------
 
-  /// 输入框内容变化时触发：模拟对方正在输入
+  /// 输入框内容变化时触发：
+  /// - 自己输入 → 显示"正在输入..."（3秒无输入后消失）
   void _onTextChanged() {
     final text = _textController.text;
-    if (text.trim().isEmpty) return;
 
-    // 本地模拟：显示"对方正在输入..."
-    if (!_isOtherTyping) {
-      setState(() => _isOtherTyping = true);
-      widget.onTypingChanged?.call(true); // 通知聊天列表
-    }
-
-    // 重置 3 秒定时器 — 停止输入 3 秒后消失
-    _typingSimulationTimer?.cancel();
-    _typingSimulationTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() => _isOtherTyping = false);
-        widget.onTypingChanged?.call(false); // 通知聊天列表
+    if (text.trim().isNotEmpty) {
+      // ---- 自己正在输入 ----
+      if (!_isSelfTyping) {
+        setState(() => _isSelfTyping = true);
       }
-    });
 
-    // 预留：通过 WebSocket 通知对方我正在输入
-    _sendTypingNotification();
+      // 重置 3 秒定时器 — 停止输入 3 秒后"正在输入..."消失
+      _selfTypingTimer?.cancel();
+      _selfTypingTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() => _isSelfTyping = false);
+        }
+      });
+
+      // 预留：通过 WebSocket 通知对方我正在输入
+      _sendTypingNotification();
+    } else {
+      // 输入框为空 → 立即隐藏"正在输入..."
+      if (_isSelfTyping) {
+        setState(() => _isSelfTyping = false);
+      }
+      _selfTypingTimer?.cancel();
+    }
+  }
+
+  /// 收到对方的输入状态通知（由 WebSocket 回调调用）
+  void _onOtherTyping(bool isTyping) {
+    if (!mounted) return;
+    if (isTyping) {
+      if (!_isOtherTyping) {
+        setState(() => _isOtherTyping = true);
+        widget.onTypingChanged?.call(true); // 通知聊天列表
+      }
+      // 重置 3 秒定时器
+      _otherTypingTimer?.cancel();
+      _otherTypingTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() {
+            _isOtherTyping = false;
+            widget.onTypingChanged?.call(false);
+          });
+        }
+      });
+    } else {
+      setState(() {
+        _isOtherTyping = false;
+        widget.onTypingChanged?.call(false);
+      });
+      _otherTypingTimer?.cancel();
+    }
+  }
+
+  /// 模拟：对方正在输入（demo 用）
+  void _simulateOtherTyping() {
+    _onOtherTyping(true);
   }
 
   /// 预留：通过 WebSocket 发送输入状态通知
@@ -226,6 +266,59 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     // if (otherId != null) {
     //   _wsService.sendTypingStatus(toId: otherId, isTyping: true);
     // }
+  }
+
+  // -----------------------------------------------------------------------
+  // 发起呼叫
+  // -----------------------------------------------------------------------
+
+  /// 发起音视频通话：调用 API → 跳转 CallPage
+  void _startCall(String callType) {
+    final otherId = widget.targetUserId;
+    if (otherId == null || otherId.isEmpty) {
+      // Demo 模式：直接跳转 CallPage（无信令）
+      Navigator.of(context).push(
+        CupertinoPageRoute(
+          builder: (_) => CallPage(
+            name: widget.chat.name,
+            userId: otherId,
+            callType: callType == 'audio' ? CallType.audio : CallType.video,
+          ),
+        ),
+      );
+      return;
+    }
+
+    // 调用后端 API 发起呼叫
+    ApiService.instance.startCall(toUserId: otherId, callType: callType).then((result) {
+      final callId = result['call_id'] as String?;
+      if (mounted) {
+        Navigator.of(context).push(
+          CupertinoPageRoute(
+            builder: (_) => CallPage(
+              name: widget.chat.name,
+              userId: otherId,
+              callType: callType == 'audio' ? CallType.audio : CallType.video,
+              direction: CallDirection.outgoing,
+              callId: callId,
+            ),
+          ),
+        );
+      }
+    }).catchError((_) {
+      // API 失败时直接跳转（demo 模式）
+      if (mounted) {
+        Navigator.of(context).push(
+          CupertinoPageRoute(
+            builder: (_) => CallPage(
+              name: widget.chat.name,
+              userId: otherId,
+              callType: callType == 'audio' ? CallType.audio : CallType.video,
+            ),
+          ),
+        );
+      }
+    });
   }
 
   Future<void> _loadHistory() async {
@@ -337,6 +430,13 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
         // Silent fail — message still shows locally
       }
     }
+
+    // Demo 模拟：发送消息 1~3 秒后，对方开始输入（持续 3 秒后自动消失）
+    if (!_useDemoFallback) return;
+    final delay = Duration(milliseconds: 1000 + (DateTime.now().millisecondsSinceEpoch % 2000));
+    Future.delayed(delay, () {
+      if (mounted) _simulateOtherTyping();
+    });
   }
 
   void _scrollToBottom() {
@@ -388,22 +488,14 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
             CupertinoButton(
               padding: EdgeInsets.zero,
               minimumSize: const Size(40, 40),
-              onPressed: () => Navigator.of(context).push(
-                CupertinoPageRoute(
-                  builder: (_) => CallPage(name: widget.chat.name, callType: CallType.audio),
-                ),
-              ),
+              onPressed: () => _startCall('audio'),
               child: const Icon(CupertinoIcons.phone, size: 22),
             ),
             const SizedBox(width: 4),
             CupertinoButton(
               padding: EdgeInsets.zero,
               minimumSize: const Size(40, 40),
-              onPressed: () => Navigator.of(context).push(
-                CupertinoPageRoute(
-                  builder: (_) => CallPage(name: widget.chat.name, callType: CallType.video),
-                ),
-              ),
+              onPressed: () => _startCall('video'),
               child: const Icon(CupertinoIcons.videocam, size: 24),
             ),
           ],
@@ -450,8 +542,9 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
                     ),
                   ),
           ),
-          // 对方正在输入指示器
-          if (_isOtherTyping) const _TypingIndicator(),
+          // 输入中指示器
+          if (_isSelfTyping) const _TypingIndicator(label: '正在输入'),
+          if (_isOtherTyping) const _TypingIndicator(label: '对方正在输入'),
           _BottomBar(
             controller: _textController,
             onSend: _sendMessage,
@@ -760,9 +853,11 @@ class _MessageBubble extends StatelessWidget {
 // Typing Indicator
 // ---------------------------------------------------------------------------
 
-/// "对方正在输入..." 指示器（带三点呼吸动画）
+/// "正在输入..." 指示器（带三点呼吸动画）
 class _TypingIndicator extends StatefulWidget {
-  const _TypingIndicator();
+  final String label;
+
+  const _TypingIndicator({required this.label});
 
   @override
   State<_TypingIndicator> createState() => _TypingIndicatorState();
@@ -794,9 +889,9 @@ class _TypingIndicatorState extends State<_TypingIndicator>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            '对方正在输入',
-            style: TextStyle(
+          Text(
+            widget.label,
+            style: const TextStyle(
               fontSize: 12,
               color: CupertinoColors.systemGrey,
             ),

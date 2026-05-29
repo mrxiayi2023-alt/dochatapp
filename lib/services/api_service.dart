@@ -205,6 +205,46 @@ class ApiService {
   }
 
   // -------------------------------------------------------------------------
+  // Call API
+  // -------------------------------------------------------------------------
+
+  /// Start a call (audio or video).
+  Future<Map<String, dynamic>> startCall({
+    required String toUserId,
+    required String callType, // "audio" or "video"
+  }) async {
+    final response = await _dio.post('/call/start', data: {
+      'to_user_id': toUserId,
+      'call_type': callType,
+    });
+    return _handleResponse(response);
+  }
+
+  /// Accept an incoming call.
+  Future<Map<String, dynamic>> acceptCall(String callId) async {
+    final response = await _dio.post('/call/accept', data: {
+      'call_id': callId,
+    });
+    return _handleResponse(response);
+  }
+
+  /// Reject an incoming call.
+  Future<Map<String, dynamic>> rejectCall(String callId) async {
+    final response = await _dio.post('/call/reject', data: {
+      'call_id': callId,
+    });
+    return _handleResponse(response);
+  }
+
+  /// End an active call.
+  Future<Map<String, dynamic>> endCall(String callId) async {
+    final response = await _dio.post('/call/end', data: {
+      'call_id': callId,
+    });
+    return _handleResponse(response);
+  }
+
+  // -------------------------------------------------------------------------
   // Internal helpers
   // -------------------------------------------------------------------------
 

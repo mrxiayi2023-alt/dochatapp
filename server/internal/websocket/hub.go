@@ -68,6 +68,17 @@ func (c *Client) readPump() {
 			case c.Send <- pong:
 			default:
 			}
+		case "offer", "answer", "ice-candidate":
+			// WebRTC signaling relay: forward to target user
+			if msg.ToID != "" {
+				relay := &WsMessage{
+					Type:    msg.Type,
+					FromID:  c.UserID,
+					ToID:    msg.ToID,
+					Content: msg.Content,
+				}
+				_ = c.Hub.SendToUser(msg.ToID, relay)
+			}
 		default:
 			log.Printf("WebSocket received type=%s from=%s", msg.Type, c.UserID)
 		}

@@ -32,7 +32,7 @@ func main() {
 	log.Println("PostgreSQL connected successfully")
 
 	// Auto-migrate
-	if err := db.AutoMigrate(&model.User{}, &model.Message{}, &model.FriendRequest{}, &model.Friend{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.Message{}, &model.FriendRequest{}, &model.Friend{}, &model.Call{}); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
 	log.Println("Database migration completed")
@@ -51,6 +51,7 @@ func main() {
 	authHdr := handler.NewAuthHandler(authSvc)
 	msgHdr := handler.NewMessageHandler(msgSvc)
 	friendHdr := handler.NewFriendHandler(friendSvc)
+	callHdr := handler.NewCallHandler(db, hub)
 
 	// Gin engine
 	r := gin.Default()
@@ -104,6 +105,16 @@ func main() {
 		friends.POST("/accept", friendHdr.AcceptRequest)
 		friends.POST("/reject", friendHdr.RejectRequest)
 		friends.GET("/list", friendHdr.GetFriends)
+	}
+
+	// Call routes (protected)
+	calls := api.Group("/call")
+	calls.Use(jwt)
+	{
+		calls.POST("/start", callHdr.Start)
+		calls.POST("/accept", callHdr.Accept)
+		calls.POST("/reject", callHdr.Reject)
+		calls.POST("/end", callHdr.End)
 	}
 
 	// WebSocket route
