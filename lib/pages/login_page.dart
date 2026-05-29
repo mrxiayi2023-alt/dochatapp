@@ -38,13 +38,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   // Actions
   // -------------------------------------------------------------------------
 
-  void _onSegmentChanged(int index) {
-    setState(() {
-      _segmentIndex = index;
-      if (index == 0) _codeController.clear();
-    });
-  }
-
   Future<void> _sendCode() async {
     final phone = _phoneController.text.trim();
     if (phone.length != 11) {
@@ -158,28 +151,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               ),
               const SizedBox(height: 32),
 
-              // Segmented control
-              CupertinoSegmentedControl<int>(
-                padding: const EdgeInsets.all(2),
-                groupValue: _segmentIndex,
-                selectedColor: CupertinoColors.activeBlue,
-                borderColor: CupertinoColors.systemGrey4,
-                onValueChanged: _onSegmentChanged,
-                children: {
-                  0: Container(
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    child: const Text('登录', style: TextStyle(fontSize: 15), overflow: TextOverflow.visible),
-                  ),
-                  1: Container(
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    child: const Text('注册', style: TextStyle(fontSize: 15), overflow: TextOverflow.visible),
-                  ),
-                },
-              ),
-              const SizedBox(height: 28),
-
               // Phone
               _buildField(
                 controller: _phoneController,
@@ -203,7 +174,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 const SizedBox(height: 12),
               ],
 
-              // Submit button — always shows "登录" regardless of segment
+              // Submit button
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
@@ -215,10 +186,38 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   padding: EdgeInsets.zero,
                   child: _loading
                       ? const CupertinoActivityIndicator(color: CupertinoColors.white)
-                      : const Text(
-                          '登录',
-                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                      : Text(
+                          isRegister ? '注册' : '登录',
+                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
                         ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Toggle login / register
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _segmentIndex = isRegister ? 0 : 1;
+                    if (_segmentIndex == 0) _codeController.clear();
+                  });
+                },
+                child: Text(
+                  isRegister ? '已有账号？立即登录' : '没有账号？立即注册',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: CupertinoColors.activeBlue,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Privacy policy
+              Center(
+                child: Text(
+                  '登录即表示同意《用户协议》和《隐私政策》',
+                  style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
                 ),
               ),
               const SizedBox(height: 40),

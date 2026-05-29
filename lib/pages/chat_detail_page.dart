@@ -1,4 +1,7 @@
-﻿import 'package:flutter/cupertino.dart';
+﻿import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_model.dart';
 import '../services/api_service.dart';
@@ -16,6 +19,9 @@ class Message {
   final bool isMe;
   final String time; // "HH:mm"
   final String fromId;
+  final bool isRead; // true = recipient has read (shown as ✓✓ blue)
+  final bool isRecalled; // 是否已被撤回
+  final DateTime sentAt; // 发送时间（用于 24h 撤回判断）
 
   Message({
     String? id,
@@ -23,7 +29,30 @@ class Message {
     required this.isMe,
     required this.time,
     this.fromId = '',
-  }) : id = id ?? DateTime.now().millisecondsSinceEpoch.toString();
+    this.isRead = false,
+    this.isRecalled = false,
+    DateTime? sentAt,
+  }) : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+       sentAt = sentAt ?? DateTime.now();
+
+  /// 创建一份拷贝，可覆盖部分字段
+  Message copyWith({bool? isRead, bool? isRecalled}) {
+    return Message(
+      id: id,
+      text: text,
+      isMe: isMe,
+      time: time,
+      fromId: fromId,
+      isRead: isRead ?? this.isRead,
+      isRecalled: isRecalled ?? this.isRecalled,
+      sentAt: sentAt,
+    );
+  }
+
+  /// 该消息是否可撤回（自己发送 + 24 小时内 + 未被撤回）
+  bool get canRecall =>
+      isMe && !isRecalled &&
+      DateTime.now().difference(sentAt).inHours < 24;
 }
 
 // ---------------------------------------------------------------------------
@@ -33,8 +62,15 @@ class Message {
 class ChatDetailPage extends ConsumerStatefulWidget {
   final ChatModel chat;
   final String? targetUserId; // backend user ID for API calls
+  /// 输入状态变化回调（通知父页面该会话的"对方正在输入"状态）
+  final void Function(bool isTyping)? onTypingChanged;
 
-  const ChatDetailPage({super.key, required this.chat, this.targetUserId});
+  const ChatDetailPage({
+    super.key,
+    required this.chat,
+    this.targetUserId,
+    this.onTypingChanged,
+  });
 
   @override
   ConsumerState<ChatDetailPage> createState() => _ChatDetailPageState();
@@ -48,16 +84,23 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
   bool _loadingHistory = true;
   bool _useDemoFallback = false;
 
+  // ---- 输入中状态模拟 ----
+  bool _isOtherTyping = false; // 对方是否正在输入
+  Timer? _typingSimulationTimer; // 停止输入3秒后自动隐藏
+
   @override
   void initState() {
     super.initState();
+    _textController.addListener(_onTextChanged);
     _initChat();
   }
 
   @override
   void dispose() {
+    _textController.removeListener(_onTextChanged);
     _textController.dispose();
     _scrollController.dispose();
+    _typingSimulationTimer?.cancel();
     _wsService.onMessage = null;
     super.dispose();
   }
@@ -74,10 +117,122 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     // Load chat history from API
     await _loadHistory();
 
+    // 进入聊天页面 → 标记该会话为已读（后端 API + 本地状态）
+    await _markConversationRead();
+
     if (mounted) {
       setState(() => _loadingHistory = false);
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     }
+  }
+
+  /// 标记当前会话所有消息为已读（后端预留 + 本地状态）
+  Future<void> _markConversationRead() async {
+    final otherId = widget.targetUserId;
+    if (otherId == null || otherId.isEmpty) return;
+
+    // 1) 调用后端 API（接口暂未实现时静默忽略）
+    try {
+      await ApiService.instance.markConversationRead(otherId);
+    } catch (_) {
+      // 后端未实现，忽略
+    }
+
+    // 2) 本地状态：将我发送的、未读的消息标记为已读（模拟已送达/已读回执）
+    if (mounted) {
+      setState(() {
+        for (int i = 0; i < _messages.length; i++) {
+          if (_messages[i].isMe && !_messages[i].isRead) {
+            _messages[i] = _messages[i].copyWith(isRead: true);
+          }
+        }
+      });
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // 消息撤回
+  // -----------------------------------------------------------------------
+
+  /// 撤回指定索引的消息
+  void _onRecallMessage(int index) {
+    setState(() {
+      _messages[index] = _messages[index].copyWith(isRecalled: true);
+    });
+  }
+
+  // -----------------------------------------------------------------------
+  // 消息删除
+  // -----------------------------------------------------------------------
+
+  /// 删除指定索引的消息
+  void _onDeleteMessage(int index) {
+    // 弹出删除选项子菜单（单向 / 双向）
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('删除消息'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              setState(() => _messages.removeAt(index));
+            },
+            child: const Text('单向删除'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              // TODO: 调用后端 API 双向删除
+              // ApiService.instance.deleteMessage(_messages[index].id, forBoth: true);
+              setState(() => _messages.removeAt(index));
+            },
+            child: const Text('双向删除'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          child: const Text('取消'),
+          onPressed: () => Navigator.of(ctx).pop(),
+        ),
+      ),
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // 输入中状态模拟
+  // -----------------------------------------------------------------------
+
+  /// 输入框内容变化时触发：模拟对方正在输入
+  void _onTextChanged() {
+    final text = _textController.text;
+    if (text.trim().isEmpty) return;
+
+    // 本地模拟：显示"对方正在输入..."
+    if (!_isOtherTyping) {
+      setState(() => _isOtherTyping = true);
+      widget.onTypingChanged?.call(true); // 通知聊天列表
+    }
+
+    // 重置 3 秒定时器 — 停止输入 3 秒后消失
+    _typingSimulationTimer?.cancel();
+    _typingSimulationTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() => _isOtherTyping = false);
+        widget.onTypingChanged?.call(false); // 通知聊天列表
+      }
+    });
+
+    // 预留：通过 WebSocket 通知对方我正在输入
+    _sendTypingNotification();
+  }
+
+  /// 预留：通过 WebSocket 发送输入状态通知
+  void _sendTypingNotification() {
+    // TODO: 接入后端 / WebSocket 后取消注释
+    // final otherId = widget.targetUserId;
+    // if (otherId != null) {
+    //   _wsService.sendTypingStatus(toId: otherId, isTyping: true);
+    // }
   }
 
   Future<void> _loadHistory() async {
@@ -114,14 +269,22 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
 
   void _fallbackToDemo() {
     _useDemoFallback = true;
+    final now = DateTime.now();
     final demoMessages = [
-      Message(text: '你好，周末有空吗？', isMe: false, time: '14:30'),
-      Message(text: '有空啊，怎么了？', isMe: true, time: '14:32'),
-      Message(text: '周末一起去杭州西湖旅游吧？', isMe: false, time: '14:33'),
-      Message(text: '好啊！我早就想去了', isMe: true, time: '14:33'),
-      Message(text: '我查了攻略，可以坐船游湖，还能去灵隐寺', isMe: false, time: '14:35'),
-      Message(text: '太棒了，那我订酒店', isMe: true, time: '14:36'),
-      Message(text: 'ok，到时候见👋', isMe: false, time: '14:37'),
+      Message(text: '你好，周末有空吗？', isMe: false, time: '14:30',
+          sentAt: now.subtract(const Duration(hours: 26))),
+      Message(text: '有空啊，怎么了？', isMe: true, time: '14:32', isRead: true,
+          sentAt: now.subtract(const Duration(hours: 25))), // >24h → 不可撤回
+      Message(text: '周末一起去杭州西湖旅游吧？', isMe: false, time: '14:33',
+          sentAt: now.subtract(const Duration(hours: 2))),
+      Message(text: '好啊！我早就想去了', isMe: true, time: '14:33', isRead: true,
+          sentAt: now.subtract(const Duration(hours: 1))), // <24h → 可撤回
+      Message(text: '我查了攻略，可以坐船游湖，还能去灵隐寺', isMe: false, time: '14:35',
+          sentAt: now.subtract(const Duration(minutes: 45))),
+      Message(text: '太棒了，那我订酒店', isMe: true, time: '14:36', isRead: false,
+          sentAt: now.subtract(const Duration(minutes: 30))), // <24h → 可撤回
+      Message(text: 'ok，到时候见👋', isMe: false, time: '14:37',
+          sentAt: now.subtract(const Duration(minutes: 20))),
     ];
     if (mounted) setState(() => _messages.addAll(demoMessages));
   }
@@ -163,7 +326,7 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     final timeStr =
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
-    final msg = Message(text: text, isMe: true, time: timeStr);
+    final msg = Message(text: text, isMe: true, time: timeStr, isRead: false, sentAt: now);
 
     setState(() {
       _messages.add(msg);
@@ -280,13 +443,21 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
                                   ),
                                 ),
                               ),
-                            _MessageBubble(message: msg),
+                            _MessageBubble(
+                              message: msg,
+                              onRecall: msg.canRecall
+                                  ? () => _onRecallMessage(index)
+                                  : null,
+                              onDelete: () => _onDeleteMessage(index),
+                            ),
                           ],
                         );
                       },
                     ),
                   ),
           ),
+          // 对方正在输入指示器
+          if (_isOtherTyping) const _TypingIndicator(),
           _BottomBar(
             controller: _textController,
             onSend: _sendMessage,
@@ -412,70 +583,291 @@ class _BottomBarState extends State<_BottomBar> {
 
 class _MessageBubble extends StatelessWidget {
   final Message message;
+  final VoidCallback? onRecall; // 撤回回调（null = 不可撤回）
+  final VoidCallback onDelete;  // 删除回调（始终可用）
 
-  const _MessageBubble({required this.message});
+  const _MessageBubble({
+    required this.message,
+    this.onRecall,
+    required this.onDelete,
+  });
+
+  /// 弹出消息操作 ActionSheet
+  void _showMessageActions(BuildContext context) {
+    final actions = <Widget>[
+      // 撤回（仅可撤回的消息显示）
+      if (onRecall != null)
+        CupertinoActionSheetAction(
+          onPressed: () {
+            Navigator.of(context).pop();
+            onRecall?.call();
+          },
+          child: const Text('撤回'),
+        ),
+      // 删除（始终显示）
+      CupertinoActionSheetAction(
+        isDestructiveAction: true,
+        onPressed: () {
+          Navigator.of(context).pop();
+          onDelete();
+        },
+        child: const Text('删除'),
+      ),
+    ];
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('选择操作'),
+        actions: actions,
+        cancelButton: CupertinoActionSheetAction(
+          child: const Text('取消'),
+          onPressed: () => Navigator.of(ctx).pop(),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final isMe = message.isMe;
-    final Color bgColor =
-        isMe ? const Color(0xFF007AFF) : const Color(0xFFE9E9EB);
-    final Color textColor =
-        isMe ? CupertinoColors.white : CupertinoColors.black;
+    final isRecalled = message.isRecalled;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
-      child: Row(
-        mainAxisAlignment:
-            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Left tail for incoming
-          if (!isMe)
-            CustomPaint(
-              size: const Size(10, 12),
-              painter: _TailPainter(
-                color: bgColor,
-                pointingRight: false,
-              ),
-            ),
-          // Bubble body
-          Flexible(
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.7,
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: isMe
-                      ? const Radius.circular(16)
-                      : const Radius.circular(4),
-                  bottomRight: isMe
-                      ? const Radius.circular(4)
-                      : const Radius.circular(16),
+    // ---- 构建消息内容 Widget（正常气泡 / 已撤回灰色块） ----
+    Widget buildContent() {
+      if (isRecalled) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+          child: Row(
+            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+            children: [
+              Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.6,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemGrey6,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  isMe ? '你撤回了一条消息' : '对方撤回了一条消息',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: CupertinoColors.systemGrey,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ),
-              child: Text(
-                message.text,
-                style: TextStyle(color: textColor, fontSize: 16),
+            ],
+          ),
+        );
+      }
+
+      // ---- 正常消息气泡 ----
+      final Color bgColor =
+          isMe ? const Color(0xFF007AFF) : const Color(0xFFE9E9EB);
+      final Color textColor =
+          isMe ? CupertinoColors.white : CupertinoColors.black;
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+        child: Row(
+          mainAxisAlignment:
+              isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            // Left tail for incoming
+            if (!isMe)
+              CustomPaint(
+                size: const Size(10, 12),
+                painter: _TailPainter(
+                  color: bgColor,
+                  pointingRight: false,
+                ),
+              ),
+            // Bubble body
+            Flexible(
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.7,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(16),
+                    topRight: const Radius.circular(16),
+                    bottomLeft: isMe
+                        ? const Radius.circular(16)
+                        : const Radius.circular(4),
+                    bottomRight: isMe
+                        ? const Radius.circular(4)
+                        : const Radius.circular(16),
+                  ),
+                ),
+                child: Text(
+                  message.text,
+                  style: TextStyle(color: textColor, fontSize: 16),
+                ),
+              ),
+            ),
+            // Right tail for outgoing
+            if (isMe)
+              CustomPaint(
+                size: const Size(10, 12),
+                painter: _TailPainter(
+                  color: bgColor,
+                  pointingRight: true,
+                ),
+              ),
+            // 已读/未读状态（仅对发出的消息显示）
+            if (isMe) _ReadStatus(isRead: message.isRead),
+          ],
+        ),
+      );
+    }
+
+    // ---- 用 GestureDetector 包裹所有消息类型，支持长按 ----
+    return GestureDetector(
+      onLongPress: () => _showMessageActions(context),
+      child: buildContent(),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Typing Indicator
+// ---------------------------------------------------------------------------
+
+/// "对方正在输入..." 指示器（带三点呼吸动画）
+class _TypingIndicator extends StatefulWidget {
+  const _TypingIndicator();
+
+  @override
+  State<_TypingIndicator> createState() => _TypingIndicatorState();
+}
+
+class _TypingIndicatorState extends State<_TypingIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 20, bottom: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            '对方正在输入',
+            style: TextStyle(
+              fontSize: 12,
+              color: CupertinoColors.systemGrey,
+            ),
+          ),
+          _buildDot(0),
+          _buildDot(1),
+          _buildDot(2),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDot(int index) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        // 每个点有 0.2s 的相位差
+        final delay = index * 0.2;
+        final t = (_controller.value - delay).clamp(0.0, 1.0);
+        // 正弦波 0→1→0
+        final opacity = (1.0 - math.cos(t * 2 * math.pi)) / 2;
+        // 映射到 0.3 → 1.0 范围，不会完全消失
+        final adjustedOpacity = 0.3 + opacity * 0.7;
+        return Opacity(
+          opacity: adjustedOpacity,
+          child: const Padding(
+            padding: EdgeInsets.only(left: 1),
+            child: Text(
+              '。',
+              style: TextStyle(
+                fontSize: 12,
+                color: CupertinoColors.systemGrey,
               ),
             ),
           ),
-          // Right tail for outgoing
-          if (isMe)
-            CustomPaint(
-              size: const Size(10, 12),
-              painter: _TailPainter(
-                color: bgColor,
-                pointingRight: true,
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Read Status Indicator
+// ---------------------------------------------------------------------------
+
+/// 已读/未读状态指示器
+/// - 已读：两个蓝色勾 ✓✓
+/// - 未读：一个灰色勾 ✓
+class _ReadStatus extends StatelessWidget {
+  final bool isRead;
+
+  const _ReadStatus({required this.isRead});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 4),
+      child: isRead
+          ? SizedBox(
+              width: 20,
+              height: 14,
+              child: Stack(
+                children: [
+                  // 第二个勾（靠右，蓝色）
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Icon(
+                      CupertinoIcons.check_mark,
+                      size: 12,
+                      color: CupertinoColors.activeBlue,
+                    ),
+                  ),
+                  // 第一个勾（靠左，蓝色，半透明重叠产生双勾效果）
+                  Positioned(
+                    right: 7,
+                    top: 0,
+                    child: Icon(
+                      CupertinoIcons.check_mark,
+                      size: 12,
+                      color: CupertinoColors.activeBlue,
+                    ),
+                  ),
+                ],
               ),
+            )
+          : Icon(
+              CupertinoIcons.check_mark,
+              size: 12,
+              color: CupertinoColors.systemGrey,
             ),
-        ],
-      ),
     );
   }
 }

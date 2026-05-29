@@ -2,7 +2,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_model.dart';
 import '../services/api_service.dart';
-import '../services/auth_provider.dart';
 import 'chat_detail_page.dart';
 import 'group_chat_page.dart';
 
@@ -53,44 +52,47 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   // -----------------------------------------------------------------------
 
   Future<void> _loadConversations() async {
-    // Read current auth to ensure token is available
-    final authState = ref.read(authProvider);
-    if (authState.token == null) {
-      _fallbackToDemo();
-      return;
-    }
+    // 直接使用硬编码数据，不请求后端 API
+    _fallbackToDemo();
 
-    // Sync ApiService token from auth provider (the provider may hold the
-    // token from login/register without having saved it to ApiService yet).
-    if (ApiService.instance.token == null && authState.token != null) {
-      await ApiService.instance.saveToken(authState.token!);
-    }
-
-    try {
-      final data = await ApiService.instance.getConversations();
-      final chats = data.map<ChatModel>((c) {
-        final name = c['with_nickname'] as String? ?? '';
-        return ChatModel(
-          name: name,
-          lastMessage: c['last_message'] as String? ?? '',
-          time: c['last_time'] as String? ?? '',
-          unreadCount: c['unread_count'] as int? ?? 0,
-          initial: name.isNotEmpty ? name.characters.first : '?',
-          avatarColor: _colorFromName(name),
-          targetUserId: c['with_user_id'] as String? ?? '',
-        );
-      }).toList();
-
-      if (mounted) {
-        setState(() {
-          _chats = chats;
-          _loading = false;
-        });
-      }
-    } catch (_) {
-      // API failed — fall back to hardcoded demo data
-      _fallbackToDemo();
-    }
+    // // 以下为 API 调用逻辑（暂时注释掉）
+    // // Read current auth to ensure token is available
+    // final authState = ref.read(authProvider);
+    // if (authState.token == null) {
+    //   _fallbackToDemo();
+    //   return;
+    // }
+    //
+    // // Sync ApiService token from auth provider
+    // if (ApiService.instance.token == null && authState.token != null) {
+    //   await ApiService.instance.saveToken(authState.token!);
+    // }
+    //
+    // try {
+    //   final data = await ApiService.instance.getConversations();
+    //   final chats = data.map<ChatModel>((c) {
+    //     final name = c['with_nickname'] as String? ?? '';
+    //     return ChatModel(
+    //       name: name,
+    //       lastMessage: c['last_message'] as String? ?? '',
+    //       time: c['last_time'] as String? ?? '',
+    //       unreadCount: c['unread_count'] as int? ?? 0,
+    //       initial: name.isNotEmpty ? name.characters.first : '?',
+    //       avatarColor: _colorFromName(name),
+    //       targetUserId: c['with_user_id'] as String? ?? '',
+    //     );
+    //   }).toList();
+    //
+    //   if (mounted) {
+    //     setState(() {
+    //       _chats = chats;
+    //       _loading = false;
+    //     });
+    //   }
+    // } catch (_) {
+    //   // API failed — fall back to hardcoded demo data
+    //   _fallbackToDemo();
+    // }
   }
 
   void _fallbackToDemo() {
@@ -108,7 +110,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ),
         ChatModel(
           name: '项目讨论群',
-          lastMessage: '李四：[文件] 需求文档v3.pdf',
+          lastMessage: '李四：[文件] 设计稿v3.pdf',
           time: '09:15',
           isGroup: true,
           initial: '项',
@@ -140,6 +142,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           avatarColor: CupertinoColors.systemPink,
           members: const ['钱七', '孙八', '周九', '吴十', '自己'],
         ),
+        ChatModel(
+          name: '孙八',
+          lastMessage: '谢谢，收到了',
+          time: '周一',
+          initial: '孙',
+          avatarColor: CupertinoColors.systemRed,
+        ),
       ];
     });
   }
@@ -147,6 +156,26 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   // -----------------------------------------------------------------------
   // New chat dialog
   // -----------------------------------------------------------------------
+
+  /// 当用户打开某个聊天时调用：清除未读角标
+  void _onChatOpened(ChatModel chat) {
+    setState(() {
+      final index = _chats.indexWhere((c) => c.name == chat.name);
+      if (index != -1 && _chats[index].unreadCount > 0) {
+        _chats[index] = _chats[index].copyWith(unreadCount: 0);
+      }
+    });
+  }
+
+  /// 对方输入状态变化回调（由 ChatDetailPage 调用）
+  void _onTypingStatusChanged(String chatName, bool isTyping) {
+    setState(() {
+      final index = _chats.indexWhere((c) => c.name == chatName);
+      if (index != -1) {
+        _chats[index] = _chats[index].copyWith(isTyping: isTyping);
+      }
+    });
+  }
 
   Future<void> _showNewChatDialog() async {
     final phoneController = TextEditingController();
@@ -256,6 +285,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         key: ValueKey(chat.name),
                         chat: chat,
                         isLast: index == _chats.length - 1,
+                        onChatOpened: _onChatOpened,
+                        onTypingChanged: _onTypingStatusChanged,
                       );
                     },
                     childCount: _chats.length,
@@ -347,10 +378,15 @@ class _NewChatButton extends StatelessWidget {
 class _ChatListItem extends StatefulWidget {
   final ChatModel chat;
   final bool isLast;
+  final void Function(ChatModel)? onChatOpened; // 打开聊天时的回调（清除未读角标）
+  final void Function(String chatName, bool isTyping)? onTypingChanged; // 输入状态回调
+
   const _ChatListItem({
     super.key,
     required this.chat,
     this.isLast = false,
+    this.onChatOpened,
+    this.onTypingChanged,
   });
   @override
   State<_ChatListItem> createState() => _ChatListItemState();
@@ -369,11 +405,21 @@ class _ChatListItemState extends State<_ChatListItem> {
       onTapUp: (_) {
         setState(() => _pressed = false);
         debugPrint('打开聊天：${chat.name}');
+
+        // 先清除未读角标（乐观更新）
+        widget.onChatOpened?.call(chat);
+
+        // 再导航进入聊天页面（传递输入状态回调）
         Navigator.of(context).push(
           CupertinoPageRoute(
             builder: (context) => chat.isGroup
                 ? GroupChatPage(chat: chat)
-                : ChatDetailPage(chat: chat, targetUserId: chat.targetUserId),
+                : ChatDetailPage(
+                    chat: chat,
+                    targetUserId: chat.targetUserId,
+                    onTypingChanged: (isTyping) =>
+                        widget.onTypingChanged?.call(chat.name, isTyping),
+                  ),
           ),
         );
       },
@@ -452,10 +498,12 @@ class _ChatListItemState extends State<_ChatListItem> {
                             children: [
                               Expanded(
                                 child: Text(
-                                  chat.lastMessage,
+                                  chat.isTyping ? '对方正在输入...' : chat.lastMessage,
                                   style: TextStyle(
                                     fontSize: 15,
-                                    color: CupertinoColors.systemGrey,
+                                    color: chat.isTyping
+                                        ? CupertinoColors.systemGreen
+                                        : CupertinoColors.systemGrey,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,

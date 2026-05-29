@@ -151,6 +151,19 @@ class ApiService {
   }
 
   // -------------------------------------------------------------------------
+  // Read Receipt API (placeholder)
+  // -------------------------------------------------------------------------
+
+  /// 标记与某用户的会话为已读。后端接口暂未实现时静默忽略。
+  Future<void> markConversationRead(String otherId) async {
+    try {
+      await _dio.post('/messages/read', data: {'with': otherId});
+    } catch (_) {
+      // Backend API not implemented yet — ignore
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // Internal helpers
   // -------------------------------------------------------------------------
 

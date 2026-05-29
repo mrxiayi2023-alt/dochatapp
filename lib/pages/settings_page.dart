@@ -52,9 +52,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             SizedBox(height: 12),
             Text('电邮 v1.0.0', style: TextStyle(fontWeight: FontWeight.w600)),
             SizedBox(height: 4),
-            Text('Copyright 2026 电邮科技', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
-            SizedBox(height: 2),
-            Text('版权所有', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+            Text('Copyright 2026 江苏栩熙晨梦网络科技有限公司 版权所有', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
           ],
         ),
         actions: [

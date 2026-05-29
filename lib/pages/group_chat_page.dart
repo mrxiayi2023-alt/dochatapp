@@ -16,7 +16,7 @@ class GroupMessage {
   const GroupMessage({
     required this.text,
     required this.senderName,
-    required this.isMe,
+    this.isMe = false,
     required this.time,
   });
 }
