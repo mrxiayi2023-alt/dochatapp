@@ -1,5 +1,12 @@
 package response
 
+// 电波灵动即时通讯系统 V1.0
+// 著作权人：江苏栩熙晨梦网络科技有限公司
+// 开发完成日期：2026年5月28日
+// 文件说明：统一API响应格式
+
+
+
 import "github.com/gin-gonic/gin"
 
 // Response is the unified API response format.

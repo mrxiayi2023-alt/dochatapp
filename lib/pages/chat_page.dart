@@ -1,4 +1,9 @@
-﻿import 'package:flutter/cupertino.dart';
+// 电波灵动即时通讯系统 V1.0
+// 著作权人：江苏栩熙晨梦网络科技有限公司
+// 开发完成日期：2026年5月28日
+// 文件说明：聊天列表页面
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_model.dart';
 import '../services/api_service.dart';
@@ -30,6 +35,7 @@ Color _colorFromName(String name) {
 // Page
 // ---------------------------------------------------------------------------
 
+/// 聊天列表页面，显示所有会话和好友申请通过后的新会话
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key});
 
@@ -53,11 +59,13 @@ class ChatPage extends ConsumerStatefulWidget {
   ConsumerState<ChatPage> createState() => _ChatPageState();
 }
 
+/// ChatPage的状态管理
 class _ChatPageState extends ConsumerState<ChatPage> {
   List<ChatModel> _chats = [];
   bool _loading = true;
 
   @override
+  /// 初始化状态，监听好友会话通知
   void initState() {
     super.initState();
     // 监听好友申请通过的通知
@@ -66,6 +74,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   @override
+  /// 释放监听器资源
   void dispose() {
     ChatPage.friendConversationNotifier.removeListener(_onFriendConversationAdded);
     super.dispose();
@@ -318,6 +327,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   // -----------------------------------------------------------------------
 
   @override
+  /// 构建聊天列表UI
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.white,
@@ -382,6 +392,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
 class _SearchBar extends StatelessWidget {
   @override
+  /// 构建聊天列表UI
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -408,6 +419,7 @@ class _NewChatButton extends StatelessWidget {
   const _NewChatButton({required this.onPressed});
 
   @override
+  /// 构建聊天列表UI
   Widget build(BuildContext context) {
     return CupertinoButton(
       padding: EdgeInsets.zero,
@@ -461,6 +473,7 @@ class _ChatListItemState extends State<_ChatListItem> {
   bool _pressed = false;
 
   @override
+  /// 构建聊天列表UI
   Widget build(BuildContext context) {
     final chat = widget.chat;
     final isLast = widget.isLast;
@@ -469,7 +482,7 @@ class _ChatListItemState extends State<_ChatListItem> {
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) {
         setState(() => _pressed = false);
-        debugPrint('打开聊天：${chat.name}');
+// debugPrint('打开聊天：${chat.name}');  // FIXED: removed print statement
 
         // 先清除未读角标（乐观更新）
         widget.onChatOpened?.call(chat);
@@ -621,6 +634,7 @@ class _Avatar extends StatelessWidget {
   final ChatModel chat;
   const _Avatar({required this.chat});
   @override
+  /// 构建聊天列表UI
   Widget build(BuildContext context) {
     return Container(
       width: 48,

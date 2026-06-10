@@ -1,5 +1,12 @@
 package main
 
+// 电波灵动即时通讯系统 V1.0
+// 著作权人：江苏栩熙晨梦网络科技有限公司
+// 开发完成日期：2026年5月28日
+// 文件说明：服务器入口与路由配置
+
+
+
 import (
 	"fmt"
 	"log"
@@ -17,6 +24,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// main 服务器入口函数，初始化数据库、路由和WebSocket中心
 func main() {
 	cfg := config.Load()
 
@@ -29,13 +37,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to connect database: %v", err)
 	}
-	log.Println("PostgreSQL connected successfully")
+// log.Println("PostgreSQL connected successfully")  // FIXED: removed print statement
 
 	// Auto-migrate
 	if err := db.AutoMigrate(&model.User{}, &model.Message{}, &model.FriendRequest{}, &model.Friend{}, &model.Call{}); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
-	log.Println("Database migration completed")
+// log.Println("Database migration completed")  // FIXED: removed print statement
 
 	// WebSocket hub
 	hub := websocket.NewHub()
@@ -133,7 +141,7 @@ func main() {
 	})
 
 	addr := ":" + cfg.ServerPort
-	log.Printf("Server starting on %s", addr)
+// log.Printf("Server starting on %s", addr)  // FIXED: removed print statement
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("failed to start server: %v", err)
 	}

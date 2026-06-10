@@ -1,3 +1,8 @@
+// 电波灵动即时通讯系统 V1.0
+// 著作权人：江苏栩熙晨梦网络科技有限公司
+// 开发完成日期：2026年5月28日
+// 文件说明：WebSocket服务封装
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -7,6 +12,7 @@ import 'api_service.dart';
 // WebSocket Message model
 // ---------------------------------------------------------------------------
 
+/// WebSocket消息数据模型
 class WsChatMessage {
   final String type;
   final String fromId;
@@ -81,8 +87,11 @@ class WebSocketService {
 
   // ---- Convenience helpers for common types ----
   void onMessage(void Function(WsChatMessage) cb) => addListener('message', cb);
+  /// 移除聊天消息监听
   void offMessage(void Function(WsChatMessage) cb) => removeListener('message', cb);
+  /// 注册来电监听
   void onCallStart(void Function(WsChatMessage) cb) => addListener('call-start', cb);
+  /// 移除来电监听
   void offCallStart(void Function(WsChatMessage) cb) => removeListener('call-start', cb);
   void onCallAccept(void Function(WsChatMessage) cb) => addListener('call-accept', cb);
   void offCallAccept(void Function(WsChatMessage) cb) => removeListener('call-accept', cb);
@@ -132,16 +141,16 @@ class WebSocketService {
           }
         },
         onError: (error) {
-          print('WebSocket error: $error');
+// print('WebSocket error: $error');  // FIXED: removed print statement
           _scheduleReconnect();
         },
         onDone: () {
-          print('WebSocket closed');
+// print('WebSocket closed');  // FIXED: removed print statement
           _scheduleReconnect();
         },
       );
     } catch (e) {
-      print('WebSocket connect failed: $e');
+// print('WebSocket connect failed: $e');  // FIXED: removed print statement
       _scheduleReconnect();
     }
   }
@@ -170,12 +179,14 @@ class WebSocketService {
     _listeners.clear();
   }
 
+  /// 发送JSON格式消息
   void _sendJson(Map<String, dynamic> json) {
     if (_channel != null) {
       _channel!.sink.add(jsonEncode(json));
     }
   }
 
+  /// 安排自动重连
   void _scheduleReconnect() {
     if (_disposed) return;
     _reconnectTimer?.cancel();

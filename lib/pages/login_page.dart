@@ -1,3 +1,8 @@
+// 电波灵动即时通讯系统 V1.0
+// 著作权人：江苏栩熙晨梦网络科技有限公司
+// 开发完成日期：2026年5月28日
+// 文件说明：登录注册页面
+
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +12,7 @@ import '../services/auth_provider.dart';
 // Login / Register Page
 // ---------------------------------------------------------------------------
 
+/// 登录/注册页面，支持手机号+密码登录和注册
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
@@ -14,6 +20,7 @@ class LoginPage extends ConsumerStatefulWidget {
   ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
+/// LoginPage的状态管理
 class _LoginPageState extends ConsumerState<LoginPage> {
   int _segmentIndex = 0; // 0 = login, 1 = register
 
@@ -26,6 +33,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _loading = false;
 
   @override
+  /// 释放控制器和计时器资源
   void dispose() {
     _phoneController.dispose();
     _passwordController.dispose();
@@ -38,6 +46,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   // Actions
   // -------------------------------------------------------------------------
 
+  /// 发送短信验证码（含60秒倒计时）
   Future<void> _sendCode() async {
     final phone = _phoneController.text.trim();
     if (phone.length != 11) {
@@ -55,6 +64,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     });
   }
 
+  /// 提交登录或注册请求
   Future<void> _submit() async {
     final phone = _phoneController.text.trim();
     final password = _passwordController.text;
@@ -89,6 +99,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (error != null) _showError(error);
   }
 
+  /// 显示错误提示弹窗
   void _showError(String message) {
     showCupertinoDialog(
       context: context,
@@ -111,6 +122,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   // -------------------------------------------------------------------------
 
   @override
+  /// 构建UI界面
   Widget build(BuildContext context) {
     final isRegister = _segmentIndex == 1;
 
@@ -232,6 +244,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   // Code field with send button
   // -------------------------------------------------------------------------
 
+  /// 构建验证码输入框及发送按钮
   Widget _buildCodeField() {
     return Row(
       children: [
@@ -268,6 +281,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   // Generic field builder
   // -------------------------------------------------------------------------
 
+  /// 构建通用输入框组件
   Widget _buildField({
     required TextEditingController controller,
     required String placeholder,

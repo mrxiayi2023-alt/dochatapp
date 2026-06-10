@@ -1,5 +1,12 @@
 package service
 
+// 电波灵动即时通讯系统 V1.0
+// 著作权人：江苏栩熙晨梦网络科技有限公司
+// 开发完成日期：2026年5月28日
+// 文件说明：认证业务逻辑
+
+
+
 import (
 	"errors"
 	"regexp"
@@ -125,6 +132,7 @@ func (s *AuthService) GetProfile(userID string) (*model.User, error) {
 	return user, nil
 }
 
+// generateToken 生成JWT令牌（有效期72小时）
 func (s *AuthService) generateToken(userID string) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID,

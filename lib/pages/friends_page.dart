@@ -1,4 +1,9 @@
-﻿import 'package:flutter/cupertino.dart';
+// 电波灵动即时通讯系统 V1.0
+// 著作权人：江苏栩熙晨梦网络科技有限公司
+// 开发完成日期：2026年5月28日
+// 文件说明：好友列表与群聊列表页面
+
+import 'package:flutter/cupertino.dart';
 import '../models/chat_model.dart';
 import '../services/api_service.dart';
 import 'chat_detail_page.dart';
@@ -30,6 +35,7 @@ Color _nameToColor(String name) {
 // Friends Page
 // ---------------------------------------------------------------------------
 
+/// 好友与群聊列表页面
 class FriendsPage extends StatefulWidget {
   const FriendsPage({super.key});
 
@@ -37,6 +43,7 @@ class FriendsPage extends StatefulWidget {
   State<FriendsPage> createState() => _FriendsPageState();
 }
 
+/// FriendsPage的状态管理
 class _FriendsPageState extends State<FriendsPage> {
   int _selectedSegment = 0; // 0 = 好友, 1 = 群聊
   List<Map<String, dynamic>> _friends = [];
@@ -44,15 +51,18 @@ class _FriendsPageState extends State<FriendsPage> {
   int _pendingRequestCount = 0;
 
   @override
+  /// 初始化状态，加载好友数据
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
   }
 
+  /// 并行加载好友列表和待处理申请数
   Future<void> _loadData() async {
     await Future.wait([_loadFriends(), _loadPendingCount()]);
   }
 
+  /// 从API加载好友列表
   Future<void> _loadFriends() async {
     try {
       final data = await ApiService.instance.getFriendList();
@@ -71,6 +81,7 @@ class _FriendsPageState extends State<FriendsPage> {
     }
   }
 
+  /// 加载待处理好友申请数
   Future<void> _loadPendingCount() async {
     try {
       final data = await ApiService.instance.getFriendRequests();
@@ -100,6 +111,7 @@ class _FriendsPageState extends State<FriendsPage> {
   /// 额外通过申请添加的 demo 好友（不会被覆盖）
   final List<Map<String, String>> _extraDemoFriends = [];
 
+  /// API失败时使用演示数据
   void _fallbackToDemo() {
     if (!mounted) return;
     setState(() {
@@ -118,6 +130,7 @@ class _FriendsPageState extends State<FriendsPage> {
     _fallbackToDemo();
   }
 
+  /// 显示添加好友对话框
   void _showAddFriendDialog() {
     final controller = TextEditingController();
     showCupertinoDialog(
@@ -232,6 +245,7 @@ class _FriendsPageState extends State<FriendsPage> {
   }
 
   @override
+  /// 构建好友页面UI
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.white,
@@ -439,6 +453,7 @@ class _FriendItem extends StatefulWidget {
 
 class _FriendItemState extends State<_FriendItem> {
   @override
+  /// 构建好友页面UI
   Widget build(BuildContext context) {
     final friend = widget.friend;
     final isLast = widget.isLast;
@@ -459,7 +474,7 @@ class _FriendItemState extends State<_FriendItem> {
           ),
         ),
       ),
-      onDismissed: (_) => print('删除好友：${friend.name}'),
+      onDismissed: (_) => () /* FIXED: removed print */,
       child: GestureDetector(
         onTap: () {
           Navigator.of(context).push(
@@ -560,6 +575,7 @@ class _GroupItem extends StatelessWidget {
   });
 
   @override
+  /// 构建好友页面UI
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {

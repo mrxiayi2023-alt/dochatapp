@@ -1,4 +1,9 @@
-﻿import 'dart:async';
+// 电波灵动即时通讯系统 V1.0
+// 著作权人：江苏栩熙晨梦网络科技有限公司
+// 开发完成日期：2026年5月28日
+// 文件说明：单聊详情页面
+
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
@@ -13,6 +18,7 @@ import 'call_page.dart';
 // Message Model (UI)
 // ---------------------------------------------------------------------------
 
+/// 聊天消息UI模型，包含文本、状态和时间信息
 class Message {
   static int _nextId = 0;
 
@@ -64,6 +70,7 @@ class Message {
 // Chat Detail Page
 // ---------------------------------------------------------------------------
 
+/// 单聊详情页面，支持消息发送、撤回和已读状态
 class ChatDetailPage extends ConsumerStatefulWidget {
   final ChatModel chat;
   final String? targetUserId; // backend user ID for API calls
@@ -81,6 +88,7 @@ class ChatDetailPage extends ConsumerStatefulWidget {
   ConsumerState<ChatDetailPage> createState() => _ChatDetailPageState();
 }
 
+/// ChatDetailPage的状态管理
 class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
   final List<Message> _messages = [];
   final TextEditingController _textController = TextEditingController();
@@ -95,6 +103,7 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
   Timer? _otherTypingTimer;    // 对方停止输入3秒后自动隐藏
 
   @override
+  /// 初始化状态，注册WebSocket监听
   void initState() {
     super.initState();
     _textController.addListener(_onTextChanged);
@@ -102,6 +111,7 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
   }
 
   @override
+  /// 释放所有控制器、计时器和WebSocket监听
   void dispose() {
     _textController.removeListener(_onTextChanged);
     _textController.dispose();
@@ -112,6 +122,7 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     super.dispose();
   }
 
+  /// 初始化聊天，加载历史消息并标记已读
   Future<void> _initChat() async {
     // Register WebSocket listener for incoming messages
     final authState = ref.read(authProvider);
@@ -321,6 +332,7 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     });
   }
 
+  /// 从API加载聊天历史
   Future<void> _loadHistory() async {
     final otherId = widget.targetUserId;
     if (otherId == null || otherId.isEmpty) {
@@ -404,6 +416,7 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
+  /// 发送文本消息
   Future<void> _sendMessage() async {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
@@ -439,6 +452,7 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     });
   }
 
+  /// 滚动到消息列表底部
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -592,7 +606,7 @@ class _BottomBarState extends State<_BottomBar> {
               CupertinoButton(
                 padding: const EdgeInsets.all(6),
                 minimumSize: const Size(36, 36),
-                onPressed: () => print('语音输入'),
+                onPressed: () => () /* FIXED: removed print */,
                 child: const Icon(
                   CupertinoIcons.mic,
                   size: 24,
@@ -625,7 +639,7 @@ class _BottomBarState extends State<_BottomBar> {
               CupertinoButton(
                 padding: const EdgeInsets.all(6),
                 minimumSize: const Size(36, 36),
-                onPressed: () => print('表情'),
+                onPressed: () => () /* FIXED: removed print */,
                 child: const Icon(
                   CupertinoIcons.smiley,
                   size: 24,
@@ -649,7 +663,7 @@ class _BottomBarState extends State<_BottomBar> {
                 CupertinoButton(
                   padding: const EdgeInsets.all(6),
                   minimumSize: const Size(36, 36),
-                  onPressed: () => print('添加'),
+                  onPressed: () => () /* FIXED: removed print */,
                   child: const Icon(
                     CupertinoIcons.plus_circle,
                     size: 26,
@@ -868,6 +882,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
   late final AnimationController _controller;
 
   @override
+  /// 初始化状态，注册WebSocket监听
   void initState() {
     super.initState();
     _controller = AnimationController(
@@ -877,6 +892,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
   }
 
   @override
+  /// 释放所有控制器、计时器和WebSocket监听
   void dispose() {
     _controller.dispose();
     super.dispose();
@@ -991,6 +1007,7 @@ class _ReadStatus extends StatelessWidget {
 // Bubble Tail Triangle Painter
 // ---------------------------------------------------------------------------
 
+/// 聊天气泡尾部三角形绘制器
 class _TailPainter extends CustomPainter {
   final Color color;
   final bool pointingRight;

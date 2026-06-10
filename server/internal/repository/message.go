@@ -42,7 +42,8 @@ func (r *MessageRepository) GetConversations(userID string) ([]model.Conversatio
 	type result struct {
 		WithID    string
 		Content   string
-		CreatedAt time.Time
+		CreatedAt   time.Time
+		UnreadCount int
 	}
 
 	var rows []result
@@ -67,6 +68,14 @@ func (r *MessageRepository) GetConversations(userID string) ([]model.Conversatio
 		return nil, err
 	}
 
+	// Count unread messages for each conversation partner
+	// FIXED: populate unread count from database
+	for i := range rows {
+		var cnt int64
+		r.db.Raw("SELECT COUNT(*) FROM messages m WHERE ((m.from_id = ? AND m.to_id = ?) OR (m.from_id = ? AND m.to_id = ?)) AND m.created_at > (SELECT COALESCE(MAX(m2.created_at), '1970-01-01') FROM messages m2 WHERE m2.from_id = ? AND m2.to_id = ?)", rows[i].WithID, userID, userID, rows[i].WithID, userID, rows[i].WithID).Scan(&cnt)
+		rows[i].UnreadCount = int(cnt)
+	}
+
 	// Build conversations with user info
 	var conversations []model.Conversation
 	for _, row := range rows {
@@ -80,6 +89,7 @@ func (r *MessageRepository) GetConversations(userID string) ([]model.Conversatio
 			WithAvatar:   user.Avatar,
 			LastMessage:  row.Content,
 			LastTime:     row.CreatedAt.Format("15:04"),
+			UnreadCount:  row.UnreadCount,  // FIXED: populate unread count from query
 		})
 	}
 	return conversations, nil

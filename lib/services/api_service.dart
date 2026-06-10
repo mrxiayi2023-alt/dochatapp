@@ -1,3 +1,8 @@
+// 电波灵动即时通讯系统 V1.0
+// 著作权人：江苏栩熙晨梦网络科技有限公司
+// 开发完成日期：2026年5月28日
+// 文件说明：HTTP API服务封装
+
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -5,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 // API Service — singleton Dio-based client for the backend
 // ---------------------------------------------------------------------------
 
+/// HTTP API服务类（单例模式），封装所有后端接口调用
 class ApiService {
   static const String _baseUrl = 'http://localhost:8080/api';
   static const String _tokenKey = 'auth_token';
@@ -45,17 +51,20 @@ class ApiService {
 
   String? get token => _token;
 
+  /// 从本地存储加载认证令牌
   Future<void> loadToken() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString(_tokenKey);
   }
 
+  /// 保存认证令牌到本地存储
   Future<void> saveToken(String token) async {
     _token = token;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
   }
 
+  /// 清除本地存储的认证令牌
   Future<void> clearToken() async {
     _token = null;
     final prefs = await SharedPreferences.getInstance();
@@ -77,6 +86,7 @@ class ApiService {
       'password': password,
       'code': code,
     });
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
@@ -89,12 +99,14 @@ class ApiService {
       'phone': phone,
       'password': password,
     });
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
   /// Fetch the current user profile. Requires a valid token in [_token].
   Future<Map<String, dynamic>> getProfile() async {
     final response = await _dio.get('/user/profile');
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
@@ -104,6 +116,7 @@ class ApiService {
       '/user/search',
       queryParameters: {'phone': phone},
     );
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
@@ -121,6 +134,7 @@ class ApiService {
       '/messages/send',
       data: {'to_id': toId, 'content': content, 'type': type},
     );
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
@@ -217,6 +231,7 @@ class ApiService {
       'to_user_id': toUserId,
       'call_type': callType,
     });
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
@@ -225,6 +240,7 @@ class ApiService {
     final response = await _dio.post('/call/accept', data: {
       'call_id': callId,
     });
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
@@ -233,6 +249,7 @@ class ApiService {
     final response = await _dio.post('/call/reject', data: {
       'call_id': callId,
     });
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
@@ -241,6 +258,7 @@ class ApiService {
     final response = await _dio.post('/call/end', data: {
       'call_id': callId,
     });
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 

@@ -1,5 +1,12 @@
 package model
 
+// 电波灵动即时通讯系统 V1.0
+// 著作权人：江苏栩熙晨梦网络科技有限公司
+// 开发完成日期：2026年5月28日
+// 文件说明：用户数据模型
+
+
+
 import "time"
 
 // User represents a registered user in the system.

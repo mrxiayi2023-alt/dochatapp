@@ -1,4 +1,9 @@
-﻿import 'package:flutter/cupertino.dart';
+// 电波灵动即时通讯系统 V1.0
+// 著作权人：江苏栩熙晨梦网络科技有限公司
+// 开发完成日期：2026年5月28日
+// 文件说明：设置页面
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/auth_provider.dart';
 
@@ -25,6 +30,7 @@ Color _nameToColor(String name) {
 // Settings Page
 // ---------------------------------------------------------------------------
 
+/// 设置页面
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
@@ -32,6 +38,7 @@ class SettingsPage extends ConsumerStatefulWidget {
   ConsumerState<SettingsPage> createState() => _SettingsPageState();
 }
 
+/// SettingsPage的状态管理
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _darkMode = false;
 
@@ -39,6 +46,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   // Dialogs
   // ---------------------------------------------------------------------------
 
+  /// 显示关于电邮对话框
   void _showAboutDialog() {
     showCupertinoDialog(
       context: context,
@@ -66,6 +74,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
+  /// 显示退出登录确认对话框
   void _showLogoutDialog() {
     showCupertinoDialog(
       context: context,
@@ -96,6 +105,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   // ---------------------------------------------------------------------------
 
   @override
+  /// 构建设置页面UI
   Widget build(BuildContext context) {
     final isDark = _darkMode;
     final bgColor = isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF2F2F7);
@@ -120,11 +130,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           SliverToBoxAdapter(
             child: _buildFormCard([
-              _buildRow('账号安全', onTap: () => print('账号安全')),
+              _buildRow('账号安全', onTap: () => () /* FIXED: removed print */),
               _buildDivider(),
-              _buildRow('隐私设置', onTap: () => print('隐私设置')),
+              _buildRow('隐私设置', onTap: () => () /* FIXED: removed print */),
               _buildDivider(),
-              _buildRow('实名认证', onTap: () => print('实名认证')),
+              _buildRow('实名认证', onTap: () => () /* FIXED: removed print */),
             ], cardColor, textColor, isDark),
           ),
           // General section
@@ -135,9 +145,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             child: _buildFormCard([
               _buildSwitchRow('深色模式', _darkMode, (v) => setState(() => _darkMode = v), cardColor, textColor, isDark),
               _buildDivider(),
-              _buildRow('多语言', trailing: '简体中文', onTap: () => print('多语言设置')),
+              _buildRow('多语言', trailing: '简体中文', onTap: () => () /* FIXED: removed print */),
               _buildDivider(),
-              _buildRow('字号设置', trailing: '标准', onTap: () => print('字号设置')),
+              _buildRow('字号设置', trailing: '标准', onTap: () => () /* FIXED: removed print */),
             ], cardColor, textColor, isDark),
           ),
           // Storage section
@@ -146,9 +156,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           SliverToBoxAdapter(
             child: _buildFormCard([
-              _buildRow('存储管理', trailing: '128MB', onTap: () => print('存储管理')),
+              _buildRow('存储管理', trailing: '128MB', onTap: () => () /* FIXED: removed print */),
               _buildDivider(),
-              _buildRow('聊天记录备份', onTap: () => print('聊天记录备份')),
+              _buildRow('聊天记录备份', onTap: () => () /* FIXED: removed print */),
             ], cardColor, textColor, isDark),
           ),
           // Other section
@@ -157,7 +167,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           SliverToBoxAdapter(
             child: _buildFormCard([
-              _buildRow('帮助与反馈', onTap: () => print('帮助与反馈')),
+              _buildRow('帮助与反馈', onTap: () => () /* FIXED: removed print */),
               _buildDivider(),
               _buildRow('关于电邮', onTap: _showAboutDialog),
             ], cardColor, textColor, isDark),
@@ -179,6 +189,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   // Profile card
   // ---------------------------------------------------------------------------
 
+  /// 构建用户资料卡片
   Widget _buildProfileCard(Color cardColor, Color textColor, Color secondaryText, bool isDark) {
     final authState = ref.watch(authProvider);
     final user = authState.user;
@@ -293,6 +304,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   // Section label
   // ---------------------------------------------------------------------------
 
+  /// 构建分组标题标签
   Widget _buildSectionLabel(String title, Color textColor, bool isDark) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 6),
@@ -311,6 +323,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   // Form card wrapper
   // ---------------------------------------------------------------------------
 
+  /// 构建表单卡片容器
   Widget _buildFormCard(List<Widget> children, Color cardColor, Color textColor, bool isDark) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -344,6 +357,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   // Standard row with chevron
   // ---------------------------------------------------------------------------
 
+  /// 构建带箭头的标准行
   Widget _buildRow(String title, {String? trailing, VoidCallback? onTap}) {
     return CupertinoButton(
       padding: EdgeInsets.zero,
@@ -378,6 +392,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   // Switch row (no chevron)
   // ---------------------------------------------------------------------------
 
+  /// 构建带开关的行
   Widget _buildSwitchRow(String title, bool value, ValueChanged<bool> onChanged, Color cardColor, Color textColor, bool isDark) {
     return Container(
       height: 48,
@@ -403,6 +418,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   // Logout button
   // ---------------------------------------------------------------------------
 
+  /// 构建退出登录按钮
   Widget _buildLogoutButton(bool isDark) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),

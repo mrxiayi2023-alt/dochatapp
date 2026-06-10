@@ -1,4 +1,9 @@
-﻿import 'dart:async';
+// 电波灵动即时通讯系统 V1.0
+// 著作权人：江苏栩熙晨梦网络科技有限公司
+// 开发完成日期：2026年5月28日
+// 文件说明：应用入口与主界面框架
+
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
@@ -18,6 +23,7 @@ import 'services/auth_provider.dart';
 import 'services/websocket_service.dart';
 import 'services/api_service.dart';
 
+  /// 应用入口函数，初始化腾讯IM SDK并启动应用
 void main() {
   // 初始化腾讯IM（占位值，后续替换真实SDKAppID和userSig）
   if (!kIsWeb) {
@@ -34,10 +40,12 @@ void main() {
 // Root App
 // ---------------------------------------------------------------------------
 
+/// 应用根组件，配置Cupertino主题和路由
 class DochatappApp extends ConsumerWidget {
   const DochatappApp({super.key});
 
   @override
+  /// 构建Widget树
   Widget build(BuildContext context, WidgetRef ref) {
     return CupertinoApp(
       title: '电邮',
@@ -60,6 +68,7 @@ class DochatappApp extends ConsumerWidget {
 // Auth Gate — checks token and shows Login or MainScreen
 // ---------------------------------------------------------------------------
 
+/// 认证状态网关，根据登录状态显示登录页或主页
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
@@ -69,6 +78,7 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   @override
+  /// 初始化状态，检查认证状态
   void initState() {
     super.initState();
     // Check for stored token on startup
@@ -76,6 +86,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   @override
+  /// 构建Widget树
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
 
@@ -106,6 +117,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 // Main Tab Screen
 // ---------------------------------------------------------------------------
 
+/// 主导航页面，包含底部Tab栏和WebSocket连接管理
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
 
@@ -117,12 +129,14 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   bool _wsConnected = false;
 
   @override
+  /// 初始化状态，检查认证状态
   void initState() {
     super.initState();
     // 首帧后尝试连接 WebSocket（使用 ref.read 是允许的）
     WidgetsBinding.instance.addPostFrameCallback((_) => _connectCallWs());
   }
 
+  /// 建立WebSocket通话信令连接
   Future<void> _connectCallWs() async {
     if (_wsConnected) return;
 
@@ -150,6 +164,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     if (mounted) setState(() => _wsConnected = true);
   }
 
+  /// 处理来电消息，弹出接听页面
   void _onIncomingCall(WsChatMessage msg) {
     if (!mounted) return;
 
@@ -186,12 +201,14 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   }
 
   @override
+  /// 释放资源，取消WebSocket监听
   void dispose() {
     WebSocketService.shared.offCallStart(_onIncomingCall);
     super.dispose();
   }
 
   @override
+  /// 构建Widget树
   Widget build(BuildContext context) {
     // 监听 auth 状态变化（ref.listen 只能在 build 方法中调用）
     ref.listen<AuthState>(authProvider, (AuthState? prev, AuthState next) {

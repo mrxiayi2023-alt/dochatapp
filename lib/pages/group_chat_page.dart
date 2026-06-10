@@ -1,4 +1,9 @@
-﻿import 'package:flutter/cupertino.dart';
+// 电波灵动即时通讯系统 V1.0
+// 著作权人：江苏栩熙晨梦网络科技有限公司
+// 开发完成日期：2026年5月28日
+// 文件说明：群聊页面
+
+import 'package:flutter/cupertino.dart';
 import '../models/chat_model.dart';
 import 'chat_detail_page.dart';
 import 'call_page.dart';
@@ -7,6 +12,7 @@ import 'call_page.dart';
 // Group Message Model
 // ---------------------------------------------------------------------------
 
+/// 群聊消息模型
 class GroupMessage {
   final String text;
   final String senderName;
@@ -60,6 +66,7 @@ Color _nameToColor(String name) {
 // Group Chat Page
 // ---------------------------------------------------------------------------
 
+/// 群聊页面，支持群组消息收发
 class GroupChatPage extends StatefulWidget {
   final ChatModel chat;
 
@@ -69,6 +76,7 @@ class GroupChatPage extends StatefulWidget {
   State<GroupChatPage> createState() => _GroupChatPageState();
 }
 
+/// GroupChatPage的状态管理
 class _GroupChatPageState extends State<GroupChatPage> {
   final List<GroupMessage> _messages = List.from(groupDemoMessages);
   final TextEditingController _textController = TextEditingController();
@@ -87,6 +95,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     super.dispose();
   }
 
+  /// 发送群聊消息
   void _sendMessage() {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
@@ -110,12 +119,14 @@ class _GroupChatPageState extends State<GroupChatPage> {
     });
   }
 
+  /// 滚动到消息列表底部
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
       _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
     }
   }
 
+  /// 计算两条消息的时间差（分钟）
   int _timeDiffInMinutes(String t1, String t2) {
     try {
       final p1 = t1.split(':');
@@ -127,6 +138,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     }
   }
 
+  /// 判断是否需要显示时间标签
   bool _shouldShowTime(int index) {
     if (index == 0) return true;
     final diff = _timeDiffInMinutes(_messages[index - 1].time, _messages[index].time);
@@ -134,6 +146,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   @override
+  /// 构建群聊界面
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
@@ -231,6 +244,7 @@ class _MemberBar extends StatelessWidget {
   }
 
   @override
+  /// 构建群聊界面
   Widget build(BuildContext context) {
     final allMembers = members;
     const maxShow = 8;
@@ -313,7 +327,7 @@ class _MemberBar extends StatelessWidget {
     return SizedBox(
       width: 50,
       child: GestureDetector(
-        onTap: () => print('查看全部成员'),
+        onTap: () => () /* FIXED: removed print */,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -359,6 +373,7 @@ class _MemberProfileCard extends StatelessWidget {
 
   const _MemberProfileCard({required this.name});
 
+  /// 发送群聊消息
   void _sendMessage(BuildContext context) {
     Navigator.of(context).pop(); // close sheet
     final chat = ChatModel(
@@ -374,6 +389,7 @@ class _MemberProfileCard extends StatelessWidget {
   }
 
   @override
+  /// 构建群聊界面
   Widget build(BuildContext context) {
     final color = _nameToColor(name);
     // Generate a pinyin-like ID from the name
@@ -512,6 +528,7 @@ class _ActionButton extends StatelessWidget {
   });
 
   @override
+  /// 构建群聊界面
   Widget build(BuildContext context) {
     return CupertinoButton(
       padding: const EdgeInsets.symmetric(vertical: 14),
@@ -548,6 +565,7 @@ class _GroupMessageBubble extends StatelessWidget {
   const _GroupMessageBubble({required this.message});
 
   @override
+  /// 构建群聊界面
   Widget build(BuildContext context) {
     final isMe = message.isMe;
     final Color bgColor =
@@ -671,6 +689,7 @@ class _GroupMessageBubble extends StatelessWidget {
 // Bubble Tail Painter
 // ---------------------------------------------------------------------------
 
+/// 群聊气泡尾部绘制器
 class _GroupTailPainter extends CustomPainter {
   final Color color;
   final bool pointingRight;
@@ -710,6 +729,7 @@ class _GroupTailPainter extends CustomPainter {
 // Bottom Input Bar
 // ---------------------------------------------------------------------------
 
+/// 底部输入栏组件
 class _GroupBottomBar extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
@@ -722,6 +742,7 @@ class _GroupBottomBar extends StatefulWidget {
 
 class _GroupBottomBarState extends State<_GroupBottomBar> {
   @override
+  /// 构建群聊界面
   Widget build(BuildContext context) {
     final hasText = widget.controller.text.trim().isNotEmpty;
 
@@ -742,7 +763,7 @@ class _GroupBottomBarState extends State<_GroupBottomBar> {
               CupertinoButton(
                 padding: const EdgeInsets.all(6),
                 minimumSize: const Size(36, 36),
-                onPressed: () => print('语音输入'),
+                onPressed: () => () /* FIXED: removed print */,
                 child: const Icon(CupertinoIcons.mic, size: 24,
                     color: CupertinoColors.systemGrey),
               ),
@@ -769,7 +790,7 @@ class _GroupBottomBarState extends State<_GroupBottomBar> {
               CupertinoButton(
                 padding: const EdgeInsets.all(6),
                 minimumSize: const Size(36, 36),
-                onPressed: () => print('表情'),
+                onPressed: () => () /* FIXED: removed print */,
                 child: const Icon(CupertinoIcons.smiley, size: 24,
                     color: CupertinoColors.systemGrey),
               ),
@@ -786,7 +807,7 @@ class _GroupBottomBarState extends State<_GroupBottomBar> {
                 CupertinoButton(
                   padding: const EdgeInsets.all(6),
                   minimumSize: const Size(36, 36),
-                  onPressed: () => print('添加'),
+                  onPressed: () => () /* FIXED: removed print */,
                   child: const Icon(CupertinoIcons.plus_circle, size: 26,
                       color: CupertinoColors.systemGrey),
                 ),

@@ -1,3 +1,8 @@
+// 电波灵动即时通讯系统 V1.0
+// 著作权人：江苏栩熙晨梦网络科技有限公司
+// 开发完成日期：2026年5月28日
+// 文件说明：音视频通话页面
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/cupertino.dart';
@@ -21,6 +26,7 @@ enum CallDirection { outgoing, incoming }
 // Call Page
 // ---------------------------------------------------------------------------
 
+/// 音视频通话页面，支持WebRTC通话
 class CallPage extends StatefulWidget {
   final String name;
   final String? userId;     // 对方用户ID
@@ -41,6 +47,7 @@ class CallPage extends StatefulWidget {
   State<CallPage> createState() => _CallPageState();
 }
 
+/// CallPage的状态管理
 class _CallPageState extends State<CallPage> {
   // Timer
   int _seconds = 0;
@@ -70,6 +77,7 @@ class _CallPageState extends State<CallPage> {
   // -----------------------------------------------------------------------
 
   @override
+  /// 初始化通话，启动摄像头和WebSocket信令
   void initState() {
     super.initState();
     _initRenderers();
@@ -82,6 +90,7 @@ class _CallPageState extends State<CallPage> {
   }
 
   @override
+  /// 释放摄像头、WebRTC连接和WebSocket监听
   void dispose() {
     _timer?.cancel();
     // Don't dispose the shared WebSocket — other pages depend on it
@@ -98,11 +107,13 @@ class _CallPageState extends State<CallPage> {
     super.dispose();
   }
 
+  /// 初始化本地和远端视频渲染器
   Future<void> _initRenderers() async {
     await _localRenderer.initialize();
     await _remoteRenderer.initialize();
   }
 
+  /// 启动本地摄像头/麦克风流
   Future<void> _startLocalStream() async {
     final mediaConstraints = <String, dynamic>{
       'audio': true,
@@ -120,10 +131,11 @@ class _CallPageState extends State<CallPage> {
       _localRenderer.srcObject = _localStream;
       if (mounted) setState(() {});
     } catch (e) {
-      print('getUserMedia error: $e');
+// print('getUserMedia error: $e');  // FIXED: removed print statement
     }
   }
 
+  /// 注册WebRTC信令回调
   Future<void> _connectWebSocket() async {
     // Register signaling callbacks (shared global instance handles connection)
     WebSocketService.shared.onOffer(_onOfferReceived);
@@ -137,6 +149,7 @@ class _CallPageState extends State<CallPage> {
     }
   }
 
+  /// 处理对方接听事件
   void _onCallAccepted(WsChatMessage msg) {
     if (widget.callId != null && msg.msgId == widget.callId) {
       setState(() => _connected = true);
@@ -144,6 +157,7 @@ class _CallPageState extends State<CallPage> {
     }
   }
 
+  /// 处理对方拒绝事件
   void _onCallRejected(WsChatMessage msg) {
     if (widget.callId != null && msg.msgId == widget.callId) {
       _showToast('对方拒绝了通话');
@@ -151,12 +165,14 @@ class _CallPageState extends State<CallPage> {
     }
   }
 
+  /// 启动通话计时器
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _seconds++);
     });
   }
 
+  /// 格式化通话时长
   String _formatTime(int sec) {
     final m = (sec ~/ 60).toString().padLeft(2, '0');
     final s = (sec % 60).toString().padLeft(2, '0');
@@ -206,17 +222,18 @@ class _CallPageState extends State<CallPage> {
 
       // Connection state handler
       _peerConnection!.onConnectionState = (state) {
-        print('PeerConnection state: $state');
+// print('PeerConnection state: $state');  // FIXED: removed print statement
         if (state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected ||
             state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
           _hangUp();
         }
       };
     } catch (e) {
-      print('createPeerConnection error: $e');
+// print('createPeerConnection error: $e');  // FIXED: removed print statement
     }
   }
 
+  /// 创建WebRTC Offer
   Future<void> _createOffer() async {
     await _createPeerConnection();
     if (_peerConnection == null) return;
@@ -227,10 +244,11 @@ class _CallPageState extends State<CallPage> {
       final json = jsonEncode(offer.toMap());
       WebSocketService.shared.sendSignaling(widget.userId ?? '', 'offer', json);
     } catch (e) {
-      print('createOffer error: $e');
+// print('createOffer error: $e');  // FIXED: removed print statement
     }
   }
 
+  /// 处理收到的Offer
   Future<void> _onOfferReceived(WsChatMessage msg) async {
     if (widget.userId != null && msg.fromId != widget.userId) return;
     await _createPeerConnection();
@@ -249,10 +267,11 @@ class _CallPageState extends State<CallPage> {
       WebSocketService.shared.sendSignaling(widget.userId ?? '', 'answer', json);
       if (mounted) setState(() => _connected = true);
     } catch (e) {
-      print('handleOffer error: $e');
+// print('handleOffer error: $e');  // FIXED: removed print statement
     }
   }
 
+  /// 处理收到的Answer
   Future<void> _onAnswerReceived(WsChatMessage msg) async {
     if (widget.userId != null && msg.fromId != widget.userId) return;
     if (_peerConnection == null) return;
@@ -265,10 +284,11 @@ class _CallPageState extends State<CallPage> {
       );
       await _peerConnection!.setRemoteDescription(desc);
     } catch (e) {
-      print('handleAnswer error: $e');
+// print('handleAnswer error: $e');  // FIXED: removed print statement
     }
   }
 
+  /// 处理ICE候选者
   Future<void> _onIceCandidateReceived(WsChatMessage msg) async {
     if (widget.userId != null && msg.fromId != widget.userId) return;
     if (_peerConnection == null) return;
@@ -282,7 +302,7 @@ class _CallPageState extends State<CallPage> {
       );
       await _peerConnection!.addCandidate(candidate);
     } catch (e) {
-      print('addIceCandidate error: $e');
+// print('addIceCandidate error: $e');  // FIXED: removed print statement
     }
   }
 
@@ -290,6 +310,7 @@ class _CallPageState extends State<CallPage> {
   // Actions
   // -----------------------------------------------------------------------
 
+  /// 挂断通话
   void _hangUp() {
     // Notify backend
     if (widget.callId != null && widget.callId!.isNotEmpty) {
@@ -298,6 +319,7 @@ class _CallPageState extends State<CallPage> {
     Navigator.of(context).pop();
   }
 
+  /// 切换麦克风静音
   void _toggleMute() => setState(() {
         _isMuted = !_isMuted;
         _localStream?.getAudioTracks().forEach((t) {
@@ -305,8 +327,10 @@ class _CallPageState extends State<CallPage> {
         });
       });
 
+  /// 切换扬声器
   void _toggleSpeaker() => setState(() => _isSpeakerOn = !_isSpeakerOn);
 
+  /// 切换摄像头
   void _toggleCamera() => setState(() {
         _isCameraOn = !_isCameraOn;
         _localStream?.getVideoTracks().forEach((t) {
@@ -335,6 +359,7 @@ class _CallPageState extends State<CallPage> {
   // -----------------------------------------------------------------------
 
   @override
+  /// 构建通话页面UI
   Widget build(BuildContext context) {
     final isVideo = widget.callType == CallType.video;
 
@@ -426,6 +451,7 @@ class _CallPageState extends State<CallPage> {
   // Voice avatar with ripple
   // -----------------------------------------------------------------------
 
+  /// 构建语音通话头像（带波纹动画）
   Widget _buildVoiceAvatar() {
     final color = CupertinoColors.activeBlue;
 
@@ -490,6 +516,7 @@ class _CallPageState extends State<CallPage> {
   // Bottom control bar
   // -----------------------------------------------------------------------
 
+  /// 构建底部控制栏
   Widget _buildControls(bool isVideo) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -546,6 +573,7 @@ class _CallPageState extends State<CallPage> {
 // Control Button
 // ---------------------------------------------------------------------------
 
+/// 通话控制按钮组件
 class _ControlButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -560,6 +588,7 @@ class _ControlButton extends StatelessWidget {
   });
 
   @override
+  /// 构建通话页面UI
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
