@@ -51,16 +51,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('关于电邮'),
+        title: const Text('关于我们'),
         content: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(height: 8),
             Icon(CupertinoIcons.mail_solid, size: 48, color: CupertinoColors.activeBlue),
             SizedBox(height: 12),
-            Text('电邮 v1.0.0', style: TextStyle(fontWeight: FontWeight.w600)),
+            Text('电波灵动 v1.0', style: TextStyle(fontWeight: FontWeight.w600)),
             SizedBox(height: 4),
             Text('Copyright 2026 江苏栩熙晨梦网络科技有限公司 版权所有', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+            const SizedBox(height: 4),
+            Text('客服邮箱：865357222@qq.com', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
           ],
         ),
         actions: [
@@ -169,7 +171,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             child: _buildFormCard([
               _buildRow('帮助与反馈', onTap: () => () /* FIXED: removed print */),
               _buildDivider(),
-              _buildRow('关于电邮', onTap: _showAboutDialog),
+              _buildRow('关于我们', onTap: _showAboutDialog),
             ], cardColor, textColor, isDark),
           ),
           // Logout button

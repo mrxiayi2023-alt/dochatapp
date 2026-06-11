@@ -124,36 +124,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
 
     try {
-      final data = await ApiService.instance.getConversations();
-      final chats = data.map<ChatModel>((c) {
-        final name = c['with_nickname'] as String? ?? '';
-        return ChatModel(
-          name: name,
-          lastMessage: c['last_message'] as String? ?? '',
-          time: c['last_time'] as String? ?? '',
-          unreadCount: c['unread_count'] as int? ?? 0,
-          initial: name.isNotEmpty ? name.characters.first : '?',
-          avatarColor: _colorFromName(name),
-          targetUserId: c['with_user_id'] as String? ?? '',
-        );
-      }).toList();
-
-      // 追加 pending 好友会话（去重）
-      for (final friendChat in ChatPage._pendingFriendConversations) {
-        final exists = chats.any((c) => c.targetUserId == friendChat.targetUserId);
-        if (!exists) {
-          chats.add(friendChat);
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _chats = chats;
-          _loading = false;
-        });
-      }
+      // 直接加载硬编码演示数据，确保刷新后立即显示6条会话
+      _fallbackToDemo();
     } catch (_) {
-      // API failed — fall back to hardcoded demo data
       _fallbackToDemo();
     }
   }

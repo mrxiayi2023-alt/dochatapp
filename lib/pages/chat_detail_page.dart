@@ -4,7 +4,6 @@
 // 文件说明：单聊详情页面
 
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -557,8 +556,8 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
                   ),
           ),
           // 输入中指示器
-          if (_isSelfTyping) const _TypingIndicator(label: '正在输入'),
-          if (_isOtherTyping) const _TypingIndicator(label: '对方正在输入'),
+          if (_isSelfTyping) const _TypingIndicator(label: '正在输入…'),
+          if (_isOtherTyping) const _TypingIndicator(label: '对方正在输入…'),
           _BottomBar(
             controller: _textController,
             onSend: _sendMessage,
@@ -867,84 +866,23 @@ class _MessageBubble extends StatelessWidget {
 // Typing Indicator
 // ---------------------------------------------------------------------------
 
-/// "正在输入..." 指示器（带三点呼吸动画）
-class _TypingIndicator extends StatefulWidget {
+/// "正在输入…" / "对方正在输入…" 指示器
+class _TypingIndicator extends StatelessWidget {
   final String label;
 
   const _TypingIndicator({required this.label});
 
   @override
-  State<_TypingIndicator> createState() => _TypingIndicatorState();
-}
-
-class _TypingIndicatorState extends State<_TypingIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  /// 初始化状态，注册WebSocket监听
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat();
-  }
-
-  @override
-  /// 释放所有控制器、计时器和WebSocket监听
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 20, bottom: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            widget.label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: CupertinoColors.systemGrey,
-            ),
-          ),
-          _buildDot(0),
-          _buildDot(1),
-          _buildDot(2),
-        ],
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12,
+          color: CupertinoColors.systemGrey,
+        ),
       ),
-    );
-  }
-
-  Widget _buildDot(int index) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        // 每个点有 0.2s 的相位差
-        final delay = index * 0.2;
-        final t = (_controller.value - delay).clamp(0.0, 1.0);
-        // 正弦波 0→1→0
-        final opacity = (1.0 - math.cos(t * 2 * math.pi)) / 2;
-        // 映射到 0.3 → 1.0 范围，不会完全消失
-        final adjustedOpacity = 0.3 + opacity * 0.7;
-        return Opacity(
-          opacity: adjustedOpacity,
-          child: const Padding(
-            padding: EdgeInsets.only(left: 1),
-            child: Text(
-              '。',
-              style: TextStyle(
-                fontSize: 12,
-                color: CupertinoColors.systemGrey,
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }

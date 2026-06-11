@@ -183,7 +183,7 @@ class _PlazaPageState extends State<PlazaPage> {
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.of(context).pop();
-              print('拍摄照片');
+              debugPrint('拍摄照片');
             },
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -197,7 +197,7 @@ class _PlazaPageState extends State<PlazaPage> {
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.of(context).pop();
-              print('从相册选择');
+              debugPrint('从相册选择');
             },
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -211,7 +211,7 @@ class _PlazaPageState extends State<PlazaPage> {
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.of(context).pop();
-              print('发布文字');
+              debugPrint('发布文字');
             },
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -258,7 +258,7 @@ class _PlazaPageState extends State<PlazaPage> {
                       item: item,
                       isLiked: _likedNames.contains(item.name),
                       onLike: () => _toggleLike(index),
-                      onTap: () => print('查看动态详情：${item.name} - ${item.content}'),
+                      onTap: () => debugPrint('查看动态详情：${item.name} - ${item.content}'),
                     );
                   },
                   childCount: _getFilteredItems().length,
@@ -571,11 +571,11 @@ class _FeedCard extends StatelessWidget {
                   message: const Text('评论功能即将上线'),
                   actions: [
                     CupertinoActionSheetAction(
-                      onPressed: () { Navigator.of(ctx).pop(); print('写评论'); },
+                      onPressed: () { Navigator.of(ctx).pop(); debugPrint('写评论'); },
                       child: const Text('写评论'),
                     ),
                     CupertinoActionSheetAction(
-                      onPressed: () { Navigator.of(ctx).pop(); print('查看所有评论'); },
+                      onPressed: () { Navigator.of(ctx).pop(); debugPrint('查看所有评论'); },
                       child: const Text('查看所有评论'),
                     ),
                   ],
@@ -609,11 +609,11 @@ class _FeedCard extends StatelessWidget {
                   message: const Text('转发功能即将上线'),
                   actions: [
                     CupertinoActionSheetAction(
-                      onPressed: () { Navigator.of(ctx).pop(); print('转发到聊天'); },
+                      onPressed: () { Navigator.of(ctx).pop(); debugPrint('转发到聊天'); },
                       child: const Text('转发到聊天'),
                     ),
                     CupertinoActionSheetAction(
-                      onPressed: () { Navigator.of(ctx).pop(); print('转发到广场'); },
+                      onPressed: () { Navigator.of(ctx).pop(); debugPrint('转发到广场'); },
                       child: const Text('转发到广场'),
                     ),
                   ],
