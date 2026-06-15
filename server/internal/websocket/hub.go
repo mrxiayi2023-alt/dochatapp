@@ -79,7 +79,8 @@ log.Printf("WebSocket read error: %v", err)
 			default:
 			}
 		case "offer", "answer", "ice-candidate":
-			// WebRTC signaling relay: forward to target user
+			// WebRTC signaling relay: forward to target user in a goroutine
+			// to avoid blocking the readPump loop.
 			if msg.ToID != "" {
 				relay := &WsMessage{
 					Type:    msg.Type,
@@ -87,7 +88,13 @@ log.Printf("WebSocket read error: %v", err)
 					ToID:    msg.ToID,
 					Content: msg.Content,
 				}
-				_ = c.Hub.SendToUser(msg.ToID, relay)
+				go func() {
+					if err := c.Hub.SendToUser(msg.ToID, relay); err != nil {
+						log.Printf("[WebRTC] relay %s → %s error: %v", msg.Type, msg.ToID, err)
+					} else {
+						log.Printf("[WebRTC] relay %s %s → %s", msg.Type, c.UserID, msg.ToID)
+					}
+				}()
 			}
 		default:
 // log.Printf("WebSocket received type=%s from=%s", msg.Type, c.UserID)  // FIXED: removed print statement

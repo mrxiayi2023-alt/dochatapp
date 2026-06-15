@@ -52,7 +52,7 @@ class _CallPageState extends State<CallPage> {
   // Timer
   int _seconds = 0;
   Timer? _timer;
-  bool _connected = false; // 对方已接听
+  bool _connected = false;
 
   // WebRTC
   RTCPeerConnection? _peerConnection;
@@ -65,12 +65,20 @@ class _CallPageState extends State<CallPage> {
   bool _isSpeakerOn = true;
   bool _isCameraOn = true;
 
-  // WebSocket for signaling (uses global shared instance)
-
   // ICE servers
   static const List<Map<String, dynamic>> _iceServers = [
     {'urls': 'stun:stun.l.google.com:19302'},
   ];
+
+  /// 时间戳日志辅助方法，用于定位WebRTC延迟瓶颈
+  void _log(String event) {
+    final ts = DateTime.now();
+    final fmt = '${ts.hour.toString().padLeft(2, '0')}:'
+        '${ts.minute.toString().padLeft(2, '0')}:'
+        '${ts.second.toString().padLeft(2, '0')}.'
+        '${ts.millisecond.toString().padLeft(3, '0')}';
+    debugPrint('[WebRTC][$fmt] $event');
+  }
 
   // -----------------------------------------------------------------------
   // Lifecycle
@@ -80,13 +88,23 @@ class _CallPageState extends State<CallPage> {
   /// 初始化通话，启动摄像头和WebSocket信令
   void initState() {
     super.initState();
+    // 接收方：用户已在 IncomingCallPage 中点击接听，通话管理状态即为"已接通"
+    // 发起方：需等待对方接听后通过 _onCallAccepted 设为 true
+    if (widget.direction == CallDirection.incoming) {
+      _connected = true;
+    }
     _initRenderers();
-    _startLocalStream();
+    // 先获取本地媒体流，完成后立即预创建 PeerConnection，
+    // 这样当 offer/answer 信令到达时 PC 已就绪，省去 300-500ms 初始化时间。
+    _startLocalStream().then((_) {
+      _createPeerConnection();
+    });
     _connectWebSocket();
-    _startTimer();
-
-    // 发起方：等待对方接听后创建offer
-    // 接收方：等待call-start信令触发
+    // 接收方：在进入 CallPage 时（用户刚按接听）开始计时
+    // 发起方：在 _onCallAccepted 收到对方接听通知后才开始计时
+    if (widget.direction == CallDirection.incoming) {
+      _startTimer();
+    }
   }
 
   @override
@@ -99,6 +117,7 @@ class _CallPageState extends State<CallPage> {
     WebSocketService.shared.offIceCandidate(_onIceCandidateReceived);
     WebSocketService.shared.offCallAccept(_onCallAccepted);
     WebSocketService.shared.offCallReject(_onCallRejected);
+    WebSocketService.shared.offCallEnd(_onCallEndReceived);
     _localStream?.getTracks().forEach((t) => t.stop());
     _localStream?.dispose();
     _peerConnection?.close();
@@ -141,6 +160,7 @@ class _CallPageState extends State<CallPage> {
     WebSocketService.shared.onOffer(_onOfferReceived);
     WebSocketService.shared.onAnswer(_onAnswerReceived);
     WebSocketService.shared.onIceCandidate(_onIceCandidateReceived);
+    WebSocketService.shared.onCallEnd(_onCallEndReceived);
 
     if (widget.direction == CallDirection.outgoing) {
       // 发起方：等待call-accept信令后创建offer
@@ -153,6 +173,10 @@ class _CallPageState extends State<CallPage> {
   void _onCallAccepted(WsChatMessage msg) {
     if (widget.callId != null && msg.msgId == widget.callId) {
       setState(() => _connected = true);
+      // 发起方在对方接听后才开始计时，与接收方同步
+      if (_timer == null) {
+        _startTimer();
+      }
       _createOffer();
     }
   }
@@ -162,6 +186,15 @@ class _CallPageState extends State<CallPage> {
     if (widget.callId != null && msg.msgId == widget.callId) {
       _showToast('对方拒绝了通话');
       Navigator.of(context).pop();
+    }
+  }
+
+  /// 处理对方挂断事件（WebSocket call-end 消息）
+  void _onCallEndReceived(WsChatMessage msg) {
+    if (widget.callId != null && widget.callId!.isNotEmpty && msg.msgId == widget.callId) {
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
     }
   }
 
@@ -186,6 +219,7 @@ class _CallPageState extends State<CallPage> {
   Future<void> _createPeerConnection() async {
     if (_peerConnection != null) return;
 
+    _log('_createPeerConnection start');
     try {
       _peerConnection = await createPeerConnection({
         'iceServers': _iceServers,
@@ -205,6 +239,7 @@ class _CallPageState extends State<CallPage> {
       // ICE candidate handler
       _peerConnection!.onIceCandidate = (candidate) {
         final json = jsonEncode(candidate.toMap());
+        _log('local ICE candidate → ${widget.userId}');
         WebSocketService.shared.sendSignaling(
           widget.userId ?? '',
           'ice-candidate',
@@ -214,6 +249,7 @@ class _CallPageState extends State<CallPage> {
 
       // Remote stream handler
       _peerConnection!.onTrack = (event) {
+        _log('remote track received: kind=${event.track.kind}');
         if (event.track.kind == 'video' || event.track.kind == 'audio') {
           _remoteRenderer.srcObject = event.streams[0];
           if (mounted) setState(() {});
@@ -222,37 +258,53 @@ class _CallPageState extends State<CallPage> {
 
       // Connection state handler
       _peerConnection!.onConnectionState = (state) {
-// print('PeerConnection state: $state');  // FIXED: removed print statement
+        final stateStr = state.toString();
+        _log('connection state → $stateStr');
         if (state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected ||
             state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
           _hangUp();
         }
       };
+      _log('_createPeerConnection done');
     } catch (e) {
-// print('createPeerConnection error: $e');  // FIXED: removed print statement
+      _log('_createPeerConnection error: $e');
     }
   }
 
   /// 创建WebRTC Offer
   Future<void> _createOffer() async {
+    _log('_createOffer start');
+    // _createPeerConnection may already be done (pre-created in initState)
     await _createPeerConnection();
-    if (_peerConnection == null) return;
+    if (_peerConnection == null) {
+      _log('_createOffer: no PeerConnection');
+      return;
+    }
 
     try {
       final offer = await _peerConnection!.createOffer();
+      _log('createOffer done');
       await _peerConnection!.setLocalDescription(offer);
+      _log('setLocalDescription (offer) done');
       final json = jsonEncode(offer.toMap());
       WebSocketService.shared.sendSignaling(widget.userId ?? '', 'offer', json);
+      _log('offer sent to ${widget.userId}');
     } catch (e) {
-// print('createOffer error: $e');  // FIXED: removed print statement
+      _log('createOffer error: $e');
     }
   }
 
   /// 处理收到的Offer
   Future<void> _onOfferReceived(WsChatMessage msg) async {
     if (widget.userId != null && msg.fromId != widget.userId) return;
+    _log('offer received from ${msg.fromId}');
+    // _createPeerConnection may already be done (pre-created in initState);
+    // the guard inside ensures it's only created once.
     await _createPeerConnection();
-    if (_peerConnection == null) return;
+    if (_peerConnection == null) {
+      _log('offer dropped: no PeerConnection');
+      return;
+    }
 
     try {
       final map = jsonDecode(msg.content) as Map<String, dynamic>;
@@ -261,13 +313,17 @@ class _CallPageState extends State<CallPage> {
         map['type'] as String? ?? '',
       );
       await _peerConnection!.setRemoteDescription(desc);
+      _log('setRemoteDescription done');
       final answer = await _peerConnection!.createAnswer();
+      _log('createAnswer done');
       await _peerConnection!.setLocalDescription(answer);
+      _log('setLocalDescription done');
       final json = jsonEncode(answer.toMap());
       WebSocketService.shared.sendSignaling(widget.userId ?? '', 'answer', json);
+      _log('answer sent to ${widget.userId}');
       if (mounted) setState(() => _connected = true);
     } catch (e) {
-// print('handleOffer error: $e');  // FIXED: removed print statement
+      _log('handleOffer error: $e');
     }
   }
 
@@ -275,6 +331,7 @@ class _CallPageState extends State<CallPage> {
   Future<void> _onAnswerReceived(WsChatMessage msg) async {
     if (widget.userId != null && msg.fromId != widget.userId) return;
     if (_peerConnection == null) return;
+    _log('answer received from ${msg.fromId}');
 
     try {
       final map = jsonDecode(msg.content) as Map<String, dynamic>;
@@ -283,8 +340,9 @@ class _CallPageState extends State<CallPage> {
         map['type'] as String? ?? '',
       );
       await _peerConnection!.setRemoteDescription(desc);
+      _log('setRemoteDescription (answer) done');
     } catch (e) {
-// print('handleAnswer error: $e');  // FIXED: removed print statement
+      _log('handleAnswer error: $e');
     }
   }
 
@@ -301,8 +359,9 @@ class _CallPageState extends State<CallPage> {
         candidateMap['sdpMLineIndex'] as int? ?? 0,
       );
       await _peerConnection!.addCandidate(candidate);
+      _log('remote ICE candidate added');
     } catch (e) {
-// print('addIceCandidate error: $e');  // FIXED: removed print statement
+      _log('addIceCandidate error: $e');
     }
   }
 

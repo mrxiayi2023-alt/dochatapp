@@ -5,6 +5,7 @@
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/theme_provider.dart';
 import '../services/auth_provider.dart';
 
 // ---------------------------------------------------------------------------
@@ -40,7 +41,7 @@ class SettingsPage extends ConsumerStatefulWidget {
 
 /// SettingsPage的状态管理
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  bool _darkMode = false;
+  // 深色模式状态由全局 theme_provider 管理，此处不再保留本地状态
 
   // ---------------------------------------------------------------------------
   // Dialogs
@@ -61,7 +62,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             Text('电波灵动 v1.0', style: TextStyle(fontWeight: FontWeight.w600)),
             SizedBox(height: 4),
             Text('Copyright 2026 江苏栩熙晨梦网络科技有限公司 版权所有', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text('客服邮箱：865357222@qq.com', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
           ],
         ),
@@ -109,7 +110,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   /// 构建设置页面UI
   Widget build(BuildContext context) {
-    final isDark = _darkMode;
+    final isDark = ref.watch(darkModeProvider);
     final bgColor = isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF2F2F7);
     final cardColor = isDark ? const Color(0xFF2C2C2E) : CupertinoColors.white;
     final textColor = isDark ? CupertinoColors.white : CupertinoColors.black;
@@ -145,7 +146,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           SliverToBoxAdapter(
             child: _buildFormCard([
-              _buildSwitchRow('深色模式', _darkMode, (v) => setState(() => _darkMode = v), cardColor, textColor, isDark),
+              _buildSwitchRow('深色模式', isDark, (v) => ref.read(darkModeProvider.notifier).state = v, cardColor, textColor, isDark),
               _buildDivider(),
               _buildRow('多语言', trailing: '简体中文', onTap: () => () /* FIXED: removed print */),
               _buildDivider(),

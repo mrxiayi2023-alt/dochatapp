@@ -124,16 +124,49 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
 
     try {
-      // 直接加载硬编码演示数据，确保刷新后立即显示6条会话
-      _fallbackToDemo();
+      final data = await ApiService.instance.getConversations();
+      if (mounted) {
+        final chats = <ChatModel>[];
+        for (final item in data) {
+          final name = (item['nickname'] ?? item['name'] ?? '').toString();
+          final lastMsg = (item['last_message'] ?? '').toString();
+          final time = (item['time'] ?? '').toString();
+          final unread = int.tryParse((item['unread'] ?? '0').toString()) ?? 0;
+          final targetUserId = (item['user_id'] ?? item['target_id'] ?? '').toString();
+          final isGroup = item['is_group'] == true || item['is_group'] == 'true';
+
+          chats.add(ChatModel(
+            name: name,
+            lastMessage: lastMsg,
+            time: time,
+            unreadCount: unread,
+            initial: name.isNotEmpty ? name.characters.first : '?',
+            avatarColor: _colorFromName(name),
+            targetUserId: targetUserId,
+            isGroup: isGroup,
+          ));
+        }
+
+        // 追加 pending 好友会话（去重）
+        for (final friendChat in ChatPage._pendingFriendConversations) {
+          final exists = chats.any((c) => c.targetUserId == friendChat.targetUserId);
+          if (!exists) {
+            chats.add(friendChat);
+          }
+        }
+
+        setState(() {
+          _loading = false;
+          _chats = chats.isNotEmpty ? chats : _fallbackToDemoList();
+        });
+      }
     } catch (_) {
       _fallbackToDemo();
     }
   }
 
-  /// 使用硬编码 demo 数据，并追加 pending 好友会话
-  void _fallbackToDemo() {
-    if (!mounted) return;
+  /// 返回演示数据列表（不 setState）
+  List<ChatModel> _fallbackToDemoList() {
     final chats = <ChatModel>[
       ChatModel(
         name: '张三',
@@ -194,9 +227,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
     }
 
+    return chats;
+  }
+
+  /// 使用硬编码 demo 数据，并追加 pending 好友会话
+  void _fallbackToDemo() {
+    if (!mounted) return;
     setState(() {
       _loading = false;
-      _chats = chats;
+      _chats = _fallbackToDemoList();
     });
   }
 

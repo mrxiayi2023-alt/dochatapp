@@ -62,18 +62,18 @@ class _FriendsPageState extends State<FriendsPage> {
     await Future.wait([_loadFriends(), _loadPendingCount()]);
   }
 
-  /// 从API加载好友列表
+  /// 从API加载好友列表，API失败时fallback到演示数据
   Future<void> _loadFriends() async {
     try {
       final data = await ApiService.instance.getFriendList();
       if (mounted) {
         setState(() {
-          // API 数据 + 本地通过接受追加的额外好友（确保永不丢失）
-          _friends = [
-            ...data.cast<Map<String, dynamic>>(),
-            ..._extraDemoFriends.map((e) => Map<String, dynamic>.from(e)),
-          ];
           _loading = false;
+          if (data.isNotEmpty) {
+            _friends = data.map((item) => Map<String, dynamic>.from(item)).toList();
+          } else {
+            _fallbackToDemo();
+          }
         });
       }
     } catch (_) {

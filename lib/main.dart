@@ -19,6 +19,7 @@ import 'pages/services_page.dart';
 import 'pages/login_page.dart';
 import 'pages/incoming_call_page.dart';
 import 'pages/call_page.dart';
+import 'providers/theme_provider.dart';
 import 'services/auth_provider.dart';
 import 'services/websocket_service.dart';
 import 'services/api_service.dart';
@@ -47,16 +48,17 @@ class DochatappApp extends ConsumerWidget {
   @override
   /// 构建Widget树
   Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = ref.watch(darkModeProvider);
     return CupertinoApp(
       title: '电邮',
       debugShowCheckedModeBanner: false,
       theme: CupertinoThemeData(
         primaryColor: CupertinoColors.systemBlue,
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: CupertinoColors.white,
-        barBackgroundColor: CupertinoColors.white,
-        textTheme: const CupertinoTextThemeData(
-          primaryColor: CupertinoColors.black,
+        brightness: isDark ? Brightness.dark : Brightness.light,
+        scaffoldBackgroundColor: isDark ? const Color(0xFF1C1C1E) : CupertinoColors.white,
+        barBackgroundColor: isDark ? const Color(0xFF1C1C1E) : CupertinoColors.white,
+        textTheme: CupertinoTextThemeData(
+          primaryColor: isDark ? CupertinoColors.white : CupertinoColors.black,
         ),
       ),
       home: const AppShell(),
@@ -127,6 +129,7 @@ class MainScreen extends ConsumerStatefulWidget {
 
 class _MainScreenState extends ConsumerState<MainScreen> {
   bool _wsConnected = false;
+  String? _activeIncomingCallId;
 
   @override
   /// 初始化状态，检查认证状态
@@ -160,6 +163,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     if (userId == null || userId.isEmpty) return;
 
     WebSocketService.shared.onCallStart(_onIncomingCall);
+    WebSocketService.shared.onCallEnd(_onCallEndForIncoming);
     await WebSocketService.shared.connect(userId);
     if (mounted) setState(() => _wsConnected = true);
   }
@@ -167,6 +171,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   /// 处理来电消息，弹出接听页面
   void _onIncomingCall(WsChatMessage msg) {
     if (!mounted) return;
+
+    final callId = msg.msgId ?? '';
+    // 防止重复推送：同一 callId 的来电只弹一次 IncomingCallPage
+    if (_activeIncomingCallId == callId) return;
+    _activeIncomingCallId = callId;
 
     // Parse payload: Content is JSON {"call_type":"...","caller_name":"..."}
     String callTypeStr = 'audio';
@@ -193,23 +202,39 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         builder: (_) => IncomingCallPage(
           callerName: callerName,
           callerId: msg.fromId,
-          callId: msg.msgId ?? '',
+          callId: callId,
           callType: callTypeStr == 'video' ? CallType.video : CallType.audio,
         ),
       ),
-    );
+    ).then((_) {
+      // IncomingCallPage 被关闭时（接受/拒接/对方取消），清除活跃来电ID
+      if (_activeIncomingCallId == callId) {
+        _activeIncomingCallId = null;
+      }
+    });
+  }
+
+  /// 处理对方挂断/取消通话事件（安全网：清除活跃来电ID，防止过期 call-start 重复弹窗）
+  void _onCallEndForIncoming(WsChatMessage msg) {
+    if (_activeIncomingCallId == msg.msgId) {
+      _activeIncomingCallId = null;
+    }
   }
 
   @override
   /// 释放资源，取消WebSocket监听
   void dispose() {
     WebSocketService.shared.offCallStart(_onIncomingCall);
+    WebSocketService.shared.offCallEnd(_onCallEndForIncoming);
     super.dispose();
   }
 
   @override
   /// 构建Widget树
   Widget build(BuildContext context) {
+    // 监听深色模式，联动底部导航栏颜色
+    final isDark = ref.watch(darkModeProvider);
+
     // 监听 auth 状态变化（ref.listen 只能在 build 方法中调用）
     ref.listen<AuthState>(authProvider, (AuthState? prev, AuthState next) {
       if (next.status == AuthStatus.authenticated && !_wsConnected) {
@@ -222,12 +247,13 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
     return CupertinoTabScaffold(
       tabBar: CupertinoTabBar(
+        key: ValueKey('main_tabbar_$isDark'),
         activeColor: CupertinoColors.systemBlue,
-        inactiveColor: CupertinoColors.systemGrey,
-        backgroundColor: CupertinoColors.white,
-        border: const Border(
+        inactiveColor: isDark ? CupertinoColors.systemGrey2 : CupertinoColors.systemGrey,
+        backgroundColor: isDark ? const Color(0xFF1C1C1E) : CupertinoColors.white,
+        border: Border(
           top: BorderSide(
-            color: CupertinoColors.systemGrey5,
+            color: isDark ? const Color(0xFF38383A) : CupertinoColors.systemGrey5,
             width: 0.5,
           ),
         ),

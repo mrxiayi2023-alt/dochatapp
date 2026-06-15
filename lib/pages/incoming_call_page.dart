@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import '../services/api_service.dart';
+import '../services/websocket_service.dart';
 import 'call_page.dart';
 
 // ---------------------------------------------------------------------------
@@ -35,12 +36,21 @@ class _IncomingCallPageState extends State<IncomingCallPage>
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
+    WebSocketService.shared.onCallEnd(_onCallEndReceived);
   }
 
   @override
   void dispose() {
+    WebSocketService.shared.offCallEnd(_onCallEndReceived);
     _pulseController.dispose();
     super.dispose();
+  }
+
+  /// 处理对方取消通话事件（WebSocket call-end 消息）
+  void _onCallEndReceived(WsChatMessage msg) {
+    if (msg.msgId == widget.callId) {
+      if (mounted) Navigator.of(context).pop();
+    }
   }
 
   Future<void> _accept() async {
