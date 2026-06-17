@@ -151,11 +151,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
-  /// 从演示数据加载会话列表（不依赖API，确保立即显示）
+  /// 加载会话列表（优先API，失败用演示数据）
   Future<void> _loadConversations() async {
-    // 直接加载演示数据，不依赖API
-    _fallbackToDemo();
-
     // 保留 WebSocket 监听注册（用于实时消息角标更新）
     final authState = ref.read(authProvider);
     if (!_wsListenerRegistered) {
@@ -166,11 +163,62 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         _wsListenerRegistered = true;
       }
     }
+
+    // 尝试从API加载
+    try {
+      final data = await ApiService.instance.getConversations();
+      if (!mounted) return;
+      final apiChats = <ChatModel>[];
+      for (final c in data) {
+        final map = c as Map<String, dynamic>;
+        final name = map['nickname'] as String? ?? map['name'] as String? ?? '';
+        final otherId = map['user_id'] as String? ?? map['target_id'] as String? ?? '';
+        apiChats.add(ChatModel(
+          name: name,
+          lastMessage: map['last_message'] as String? ?? '',
+          time: map['time'] as String? ?? '',
+          unreadCount: map['unread_count'] as int? ?? 0,
+          initial: name.isNotEmpty ? name.characters.first : '?',
+          avatarColor: _colorFromName(name),
+          targetUserId: otherId,
+        ));
+      }
+      // 合并 pending 好友会话（去重）
+      for (final fc in ChatPage._pendingFriendConversations) {
+        final exists = apiChats.any((c) => c.targetUserId == fc.targetUserId);
+        if (!exists) apiChats.insert(0, fc);
+      }
+      setState(() {
+        _loading = false;
+        _chats = apiChats;
+      });
+    } catch (_) {
+      _fallbackToDemo();
+    }
   }
 
-  /// 返回演示数据列表（不 setState）
+  /// 返回演示数据列表（不 setState），测试账号置顶
   List<ChatModel> _fallbackToDemoList() {
     final chats = <ChatModel>[
+      // 测试账号（置顶，用于实时消息验证）
+      ChatModel(
+        name: '测试账号A',
+        lastMessage: '',
+        time: '',
+        unreadCount: 0,
+        initial: 'A',
+        avatarColor: CupertinoColors.systemIndigo,
+        targetUserId: '18955091111',
+      ),
+      ChatModel(
+        name: '测试账号B',
+        lastMessage: '',
+        time: '',
+        unreadCount: 0,
+        initial: 'B',
+        avatarColor: CupertinoColors.systemTeal,
+        targetUserId: '17612025678',
+      ),
       ChatModel(
         name: '张三',
         lastMessage: '周末一起去杭州西湖旅游吧？',
@@ -219,25 +267,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         time: '周一',
         initial: '孙',
         avatarColor: CupertinoColors.systemRed,
-      ),
-      // 测试账号（用于实时消息角标验证）
-      ChatModel(
-        name: '测试账号1',
-        lastMessage: '',
-        time: '',
-        unreadCount: 0,
-        initial: '测',
-        avatarColor: CupertinoColors.systemIndigo,
-        targetUserId: '18955091111',
-      ),
-      ChatModel(
-        name: '测试账号2',
-        lastMessage: '',
-        time: '',
-        unreadCount: 0,
-        initial: '测',
-        avatarColor: CupertinoColors.systemTeal,
-        targetUserId: '17612025678',
       ),
     ];
 

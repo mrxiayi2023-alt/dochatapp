@@ -346,6 +346,7 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
   /// 阅后即焚时长选项
   static const List<({String label, Duration? duration})> _burnOptions = [
     (label: '关闭', duration: null),
+    (label: '30秒', duration: Duration(seconds: 30)),
     (label: '5分钟', duration: Duration(minutes: 5)),
     (label: '1天', duration: Duration(days: 1)),
     (label: '7天', duration: Duration(days: 7)),
@@ -859,11 +860,12 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
 
     _scrollToBottom();
 
-    // Try to send via API
-    final otherId = widget.targetUserId;
-    if (otherId != null && !_useDemoFallback) {
+    // Try to send via API — resolve phone number to user ID if needed
+    final rawId = widget.targetUserId;
+    if (rawId != null && !_useDemoFallback) {
       try {
-        await ApiService.instance.sendMessage(toId: otherId, content: finalText);
+        final toId = await ApiService.instance.resolveUserId(rawId);
+        await ApiService.instance.sendMessage(toId: toId, content: finalText);
       } catch (_) {
         // Silent fail — message still shows locally
       }

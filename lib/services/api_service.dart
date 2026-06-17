@@ -120,6 +120,21 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  /// 通过手机号查找用户ID，如果输入已是ID则直接返回
+  Future<String> resolveUserId(String phoneOrId) async {
+    // 非纯数字视为已有ID
+    if (RegExp(r'^\d{11}$').hasMatch(phoneOrId)) {
+      try {
+        final user = await searchUser(phoneOrId);
+        final id = user['id'] as String?;
+        if (id != null && id.isNotEmpty) return id;
+      } catch (_) {
+        // lookup failed, fall through to use as-is
+      }
+    }
+    return phoneOrId;
+  }
+
   // -------------------------------------------------------------------------
   // Message API
   // -------------------------------------------------------------------------

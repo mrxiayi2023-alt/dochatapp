@@ -65,15 +65,39 @@ class _FriendsPageState extends State<FriendsPage> {
     await Future.wait([_loadFriends(), _loadPendingCount()]);
   }
 
-  /// 直接加载演示好友列表（不依赖API，确保立即显示）
+  /// 加载好友列表（优先API，失败用演示数据）
   Future<void> _loadFriends() async {
-    _fallbackToDemo();
+    try {
+      final data = await ApiService.instance.getFriendList();
+      if (!mounted) return;
+      final apiFriends = data
+          .map((f) => Map<String, dynamic>.from(f as Map))
+          .toList();
+      // 合并额外好友（接受申请后暂未同步到API的好友），用 user_id 去重
+      for (final extra in _extraDemoFriends) {
+        final exists = apiFriends.any((f) => f['user_id'] == extra['user_id']);
+        if (!exists) apiFriends.add(Map<String, dynamic>.from(extra));
+      }
+      setState(() {
+        _loading = false;
+        _friends = apiFriends;
+      });
+    } catch (_) {
+      _fallbackToDemo();
+    }
   }
 
-  /// 直接加载待处理好友申请数（演示模式：固定2条）
+  /// 加载待处理好友申请数（优先API，失败用演示数据）
   Future<void> _loadPendingCount() async {
-    if (mounted) {
-      setState(() => _pendingRequestCount = _demoPendingCount);
+    try {
+      final data = await ApiService.instance.getFriendRequests();
+      if (mounted) {
+        setState(() => _pendingRequestCount = data.length);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _pendingRequestCount = _demoPendingCount);
+      }
     }
   }
 
@@ -87,8 +111,8 @@ class _FriendsPageState extends State<FriendsPage> {
     {'user_id': '6', 'nickname': '孙八', 'phone': '13800000006'},
     {'user_id': '7', 'nickname': '周九', 'phone': '13800000007'},
     {'user_id': '8', 'nickname': '吴十', 'phone': '13800000008'},
-    {'user_id': '18955091111', 'nickname': '测试账号1', 'phone': '18955091111'},
-    {'user_id': '17612025678', 'nickname': '测试账号2', 'phone': '17612025678'},
+    {'user_id': '18955091111', 'nickname': '测试账号A', 'phone': '18955091111'},
+    {'user_id': '17612025678', 'nickname': '测试账号B', 'phone': '17612025678'},
   ];
 
   /// 额外通过申请添加的 demo 好友（不会被覆盖）
@@ -106,10 +130,9 @@ class _FriendsPageState extends State<FriendsPage> {
     });
   }
 
-  /// 在 demo 模式下添加一个新好友到列表中
-  void _addDemoFriend(String nickname, String phone) {
-    final newId = 'demo_${DateTime.now().millisecondsSinceEpoch}';
-    _extraDemoFriends.add({'user_id': newId, 'nickname': nickname, 'phone': phone});
+  /// 在 demo 模式下添加一个新好友到列表中，使用真实 user_id
+  void _addDemoFriend(String nickname, String phone, String userId) {
+    _extraDemoFriends.add({'user_id': userId, 'nickname': nickname, 'phone': phone});
     _fallbackToDemo();
   }
 
@@ -171,12 +194,15 @@ class _FriendsPageState extends State<FriendsPage> {
         );
       }
     } catch (e) {
-      if (mounted) {
+      if (!mounted) return;
+      final errMsg = e.toString();
+      // 已经是好友：友好提示并刷新列表
+      if (errMsg.toLowerCase().contains('already friends')) {
         showCupertinoDialog(
           context: context,
           builder: (ctx) => CupertinoAlertDialog(
-            title: const Text('发送失败'),
-            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            title: const Text('提示'),
+            content: const Text('你们已经是好友了'),
             actions: [
               CupertinoDialogAction(
                 child: const Text('确定'),
@@ -185,7 +211,22 @@ class _FriendsPageState extends State<FriendsPage> {
             ],
           ),
         );
+        _loadFriends();
+        return;
       }
+      showCupertinoDialog(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('发送失败'),
+          content: Text(errMsg.replaceFirst('Exception: ', '')),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('确定'),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -210,7 +251,7 @@ class _FriendsPageState extends State<FriendsPage> {
       final phone = result[kResultAcceptedPhone] ?? '';
       final userId = result[kResultAcceptedUserId] ?? '';
       if (nickname.isNotEmpty) {
-        _addDemoFriend(nickname, phone);
+        _addDemoFriend(nickname, phone, userId);
 
         // 同时向聊天列表添加一条新会话（带有未读标记）
         final chat = ChatModel(
