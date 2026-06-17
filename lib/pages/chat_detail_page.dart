@@ -309,6 +309,82 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     });
   }
 
+  /// 判断消息是否在24小时内
+  bool _isWithin24Hours(Message msg) {
+    return DateTime.now().difference(msg.sentAt).inHours < 24;
+  }
+
+  /// 长按消息弹出的操作菜单
+  void _showMessageActions(int index) {
+    final msg = _messages[index];
+    final isMe = msg.isMe;
+    final canRecall = isMe && !msg.isRecalled && _isWithin24Hours(msg);
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('选择操作'),
+        actions: [
+          if (isMe && canRecall)
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _onRecallMessage(index);
+              },
+              child: const Text('撤回'),
+            ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _copyMessage(msg.text);
+            },
+            child: const Text('复制'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _quoteMessage(msg);
+            },
+            child: const Text('引用'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _toggleFavorite(msg.id);
+            },
+            child: Text(_favoritedMessageIds.contains(msg.id) ? '取消收藏' : '收藏'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _enterMultiSelectMode(msg.id);
+            },
+            child: const Text('多选'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _onDeleteMessage(index, forBoth: false);
+            },
+            child: const Text('单向删除'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _onDeleteMessage(index, forBoth: true);
+            },
+            child: const Text('双向删除'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('取消'),
+        ),
+      ),
+    );
+  }
+
   /// 显示收藏消息列表
   void _showFavoriteList() {
     final favMsgs = _messages
@@ -774,6 +850,18 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
                                 onQuote: () => _quoteMessage(msg),
                                 onFavorite: () => _toggleFavorite(msg.id),
                                 onMultiSelect: () => _enterMultiSelectMode(msg.id),
+                                onLongPress: () => _showMessageActions(index),
+                                onReEdit: msg.isMe && msg.isRecalled
+                                    ? () {
+                                        _textController.text = msg.text;
+                                        _textController.selection =
+                                            TextSelection.fromPosition(
+                                          TextPosition(
+                                              offset: _textController.text.length),
+                                        );
+                                        FocusScope.of(context).requestFocus();
+                                      }
+                                    : null,
                               ),
                             ],
                           ),
@@ -1077,6 +1165,8 @@ class _MessageBubble extends StatelessWidget {
   final VoidCallback? onQuote;
   final VoidCallback? onFavorite;
   final VoidCallback? onMultiSelect;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onReEdit;
 
   const _MessageBubble({
     required this.message,
@@ -1089,116 +1179,9 @@ class _MessageBubble extends StatelessWidget {
     this.onQuote,
     this.onFavorite,
     this.onMultiSelect,
+    this.onLongPress,
+    this.onReEdit,
   });
-
-  /// 弹出消息操作 ActionSheet（5个选项）
-  void _showMessageActions(BuildContext context) {
-    // 多选模式下不弹出长按菜单
-    if (isMultiSelectMode) return;
-
-    showCupertinoModalPopup(
-      context: context,
-      builder: (ctx) {
-        return CupertinoActionSheet(
-          title: const Text('消息操作'),
-          actions: [
-            // 📋 复制
-            CupertinoActionSheetAction(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                onCopy?.call();
-              },
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(CupertinoIcons.doc_on_doc, size: 18,
-                      color: CupertinoColors.activeBlue),
-                  SizedBox(width: 8),
-                  Text('📋 复制'),
-                ],
-              ),
-            ),
-            // 💬 引用
-            CupertinoActionSheetAction(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                onQuote?.call();
-              },
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(CupertinoIcons.reply, size: 18,
-                      color: CupertinoColors.activeBlue),
-                  SizedBox(width: 8),
-                  Text('💬 引用'),
-                ],
-              ),
-            ),
-            // ⭐ 收藏
-            CupertinoActionSheetAction(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                onFavorite?.call();
-              },
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    isFavorited
-                        ? CupertinoIcons.star_fill
-                        : CupertinoIcons.star,
-                    size: 18,
-                    color: isFavorited
-                        ? CupertinoColors.systemYellow
-                        : CupertinoColors.activeBlue,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(isFavorited ? '⭐ 取消收藏' : '⭐ 收藏'),
-                ],
-              ),
-            ),
-            // ☑️ 多选
-            CupertinoActionSheetAction(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                onMultiSelect?.call();
-              },
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(CupertinoIcons.check_mark_circled, size: 18,
-                      color: CupertinoColors.activeBlue),
-                  SizedBox(width: 8),
-                  Text('☑️ 多选'),
-                ],
-              ),
-            ),
-            // 撤回（仅自己发送 + 24h内）
-            if (onRecall != null)
-              CupertinoActionSheetAction(
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  onRecall?.call();
-                },
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(CupertinoIcons.arrow_uturn_left, size: 18,
-                        color: CupertinoColors.systemOrange),
-                    SizedBox(width: 8),
-                    Text('撤回'),
-                  ],
-                ),
-              ),
-          ],
-          cancelButton: CupertinoActionSheetAction(
-            child: const Text('取消'),
-            onPressed: () => Navigator.of(ctx).pop(),
-          ),
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1208,6 +1191,8 @@ class _MessageBubble extends StatelessWidget {
     // ---- 构建消息内容 Widget ----
     Widget buildContent() {
       if (isRecalled) {
+        // 「重新编辑」仅对自己撤回的消息显示
+        final showReEdit = isMe && onReEdit != null;
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
           child: Row(
@@ -1222,14 +1207,39 @@ class _MessageBubble extends StatelessWidget {
                   color: CupertinoColors.systemGrey6,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  isMe ? '你撤回了一条消息' : '对方撤回了一条消息',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: CupertinoColors.systemGrey,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+                child: showReEdit
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            '你撤回了一条消息',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: CupertinoColors.systemGrey,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          GestureDetector(
+                            onTap: onReEdit,
+                            child: const Text(
+                              '重新编辑',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: CupertinoColors.activeBlue,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        isMe ? '你撤回了一条消息' : '对方撤回了一条消息',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: CupertinoColors.systemGrey,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
               ),
             ],
           ),
@@ -1356,7 +1366,7 @@ class _MessageBubble extends StatelessWidget {
     }
 
     return GestureDetector(
-      onLongPress: () => _showMessageActions(context),
+      onLongPress: () => onLongPress?.call(),
       child: buildContent(),
     );
   }
