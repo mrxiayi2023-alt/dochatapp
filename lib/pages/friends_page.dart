@@ -49,12 +49,15 @@ class _FriendsPageState extends State<FriendsPage> {
   List<Map<String, dynamic>> _friends = [];
   bool _loading = true;
   int _pendingRequestCount = 0;
+  int _demoPendingCount = 2; // demo 模式下本地维护的待处理申请数
 
   @override
   /// 初始化状态，加载好友数据
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadData();
+    });
   }
 
   /// 并行加载好友列表和待处理申请数
@@ -62,37 +65,15 @@ class _FriendsPageState extends State<FriendsPage> {
     await Future.wait([_loadFriends(), _loadPendingCount()]);
   }
 
-  /// 从API加载好友列表，API失败时fallback到演示数据
+  /// 直接加载演示好友列表（不依赖API，确保立即显示）
   Future<void> _loadFriends() async {
-    try {
-      final data = await ApiService.instance.getFriendList();
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          if (data.isNotEmpty) {
-            _friends = data.map((item) => Map<String, dynamic>.from(item)).toList();
-          } else {
-            _fallbackToDemo();
-          }
-        });
-      }
-    } catch (_) {
-      _fallbackToDemo();
-    }
+    _fallbackToDemo();
   }
 
-  /// 加载待处理好友申请数
+  /// 直接加载待处理好友申请数（演示模式：固定2条）
   Future<void> _loadPendingCount() async {
-    try {
-      final data = await ApiService.instance.getFriendRequests();
-      if (mounted) {
-        setState(() => _pendingRequestCount = data.length);
-      }
-    } catch (_) {
-      // API 失败时用 demo 数据（2 条申请）让红点可见
-      if (mounted) {
-        setState(() => _pendingRequestCount = 2);
-      }
+    if (mounted) {
+      setState(() => _pendingRequestCount = _demoPendingCount);
     }
   }
 
@@ -106,6 +87,8 @@ class _FriendsPageState extends State<FriendsPage> {
     {'user_id': '6', 'nickname': '孙八', 'phone': '13800000006'},
     {'user_id': '7', 'nickname': '周九', 'phone': '13800000007'},
     {'user_id': '8', 'nickname': '吴十', 'phone': '13800000008'},
+    {'user_id': '18955091111', 'nickname': '测试账号1', 'phone': '18955091111'},
+    {'user_id': '17612025678', 'nickname': '测试账号2', 'phone': '17612025678'},
   ];
 
   /// 额外通过申请添加的 demo 好友（不会被覆盖）
@@ -209,7 +192,15 @@ class _FriendsPageState extends State<FriendsPage> {
   void _openFriendRequests() async {
     final result = await Navigator.of(context).push<Map<String, String>>(
       CupertinoPageRoute(
-        builder: (_) => const FriendRequestsPage(),
+        builder: (_) => FriendRequestsPage(
+          // 每次接受/拒绝后实时更新角标数字
+          onCountChanged: (remaining) {
+            _demoPendingCount = remaining; // 同步本地变量
+            if (mounted) {
+              setState(() => _pendingRequestCount = remaining);
+            }
+          },
+        ),
       ),
     );
 
@@ -235,7 +226,7 @@ class _FriendsPageState extends State<FriendsPage> {
       }
     }
 
-    // 2) 再刷新角标
+    // 2) 刷新角标（demo 模式下读取本地 _demoPendingCount）
     await _loadPendingCount();
 
     // 3) 从 API 重新加载好友列表
@@ -261,39 +252,45 @@ class _FriendsPageState extends State<FriendsPage> {
                       // Friend requests button with badge
                       CupertinoButton(
                         padding: EdgeInsets.zero,
+                        minimumSize: const Size(50, 50),
                         onPressed: _openFriendRequests,
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            const Icon(CupertinoIcons.bell, size: 24),
-                            if (_pendingRequestCount > 0)
-                              Positioned(
-                                right: -4,
-                                top: -4,
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: const BoxDecoration(
-                                    color: CupertinoColors.destructiveRed,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  constraints: const BoxConstraints(
-                                    minWidth: 18,
-                                    minHeight: 18,
-                                  ),
-                                  child: Text(
-                                    _pendingRequestCount > 9
-                                        ? '9+'
-                                        : '$_pendingRequestCount',
-                                    style: const TextStyle(
-                                      color: CupertinoColors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
+                        child: SizedBox(
+                          width: 50,
+                          height: 50,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            alignment: Alignment.center,
+                            children: [
+                              const Icon(CupertinoIcons.bell, size: 24),
+                              if (_pendingRequestCount > 0)
+                                Positioned(
+                                  right: 2,
+                                  top: 2,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: CupertinoColors.destructiveRed,
+                                      shape: BoxShape.circle,
                                     ),
-                                    textAlign: TextAlign.center,
+                                    constraints: const BoxConstraints(
+                                      minWidth: 18,
+                                      minHeight: 18,
+                                    ),
+                                    child: Text(
+                                      _pendingRequestCount > 9
+                                          ? '9+'
+                                          : '$_pendingRequestCount',
+                                      style: const TextStyle(
+                                        color: CupertinoColors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
                                   ),
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -414,7 +411,7 @@ class _FriendsPageState extends State<FriendsPage> {
         name: '设计小组', lastMessage: '', time: '',
         isGroup: true, initial: '设',
         avatarColor: CupertinoColors.systemPink,
-        members: ['钱七', '孙八', '周九', '吴十', '自己'],
+        members: ['钱七', '孙八', '周九', '自己'],
       ),
     ];
     return SliverList(

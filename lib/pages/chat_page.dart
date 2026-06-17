@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_model.dart';
 import '../services/api_service.dart';
 import '../services/auth_provider.dart';
+import '../services/websocket_service.dart';
 import 'chat_detail_page.dart';
 import 'group_chat_page.dart';
 
@@ -63,6 +64,7 @@ class ChatPage extends ConsumerStatefulWidget {
 class _ChatPageState extends ConsumerState<ChatPage> {
   List<ChatModel> _chats = [];
   bool _loading = true;
+  bool _wsListenerRegistered = false;
 
   @override
   /// 初始化状态，监听好友会话通知
@@ -77,7 +79,47 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   /// 释放监听器资源
   void dispose() {
     ChatPage.friendConversationNotifier.removeListener(_onFriendConversationAdded);
+    if (_wsListenerRegistered) {
+      WebSocketService.shared.offMessage(_onWsIncomingMessage);
+    }
     super.dispose();
+  }
+
+  /// WebSocket 收到新消息时更新对应会话的未读角标
+  void _onWsIncomingMessage(WsChatMessage msg) {
+    if (!mounted) return;
+    final atState = ref.read(authProvider);
+    final myId = atState.user?['id'] as String?;
+    if (myId == null) return;
+    // 忽略自己发出的消息回显
+    if (msg.fromId == myId) return;
+
+    final fromId = msg.fromId;
+    setState(() {
+      final index = _chats.indexWhere((c) => c.targetUserId == fromId);
+      if (index != -1) {
+        final chat = _chats[index];
+        _chats[index] = chat.copyWith(
+          lastMessage: msg.content,
+          time: msg.time,
+          unreadCount: chat.unreadCount + 1,
+        );
+      } else {
+        // 新会话：插入到列表顶部
+        _chats.insert(
+          0,
+          ChatModel(
+            name: fromId,
+            lastMessage: msg.content,
+            time: msg.time,
+            unreadCount: 1,
+            initial: fromId.isNotEmpty ? fromId[0] : '?',
+            avatarColor: _colorFromName(fromId),
+            targetUserId: fromId,
+          ),
+        );
+      }
+    });
   }
 
   /// 好友通过通知监听：立即把新好友追加到 _chats 列表
@@ -109,59 +151,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
-  /// 从 API 加载会话列表，并追加 pending 好友会话
+  /// 从演示数据加载会话列表（不依赖API，确保立即显示）
   Future<void> _loadConversations() async {
-    // Read current auth to ensure token is available
+    // 直接加载演示数据，不依赖API
+    _fallbackToDemo();
+
+    // 保留 WebSocket 监听注册（用于实时消息角标更新）
     final authState = ref.read(authProvider);
-    if (authState.token == null) {
-      _fallbackToDemo();
-      return;
-    }
-
-    // Sync ApiService token from auth provider
-    if (ApiService.instance.token == null && authState.token != null) {
-      await ApiService.instance.saveToken(authState.token!);
-    }
-
-    try {
-      final data = await ApiService.instance.getConversations();
-      if (mounted) {
-        final chats = <ChatModel>[];
-        for (final item in data) {
-          final name = (item['nickname'] ?? item['name'] ?? '').toString();
-          final lastMsg = (item['last_message'] ?? '').toString();
-          final time = (item['time'] ?? '').toString();
-          final unread = int.tryParse((item['unread'] ?? '0').toString()) ?? 0;
-          final targetUserId = (item['user_id'] ?? item['target_id'] ?? '').toString();
-          final isGroup = item['is_group'] == true || item['is_group'] == 'true';
-
-          chats.add(ChatModel(
-            name: name,
-            lastMessage: lastMsg,
-            time: time,
-            unreadCount: unread,
-            initial: name.isNotEmpty ? name.characters.first : '?',
-            avatarColor: _colorFromName(name),
-            targetUserId: targetUserId,
-            isGroup: isGroup,
-          ));
-        }
-
-        // 追加 pending 好友会话（去重）
-        for (final friendChat in ChatPage._pendingFriendConversations) {
-          final exists = chats.any((c) => c.targetUserId == friendChat.targetUserId);
-          if (!exists) {
-            chats.add(friendChat);
-          }
-        }
-
-        setState(() {
-          _loading = false;
-          _chats = chats.isNotEmpty ? chats : _fallbackToDemoList();
-        });
+    if (!_wsListenerRegistered) {
+      final myId = authState.user?['id'] as String?;
+      if (myId != null) {
+        WebSocketService.shared.onMessage(_onWsIncomingMessage);
+        await WebSocketService.shared.connect(myId);
+        _wsListenerRegistered = true;
       }
-    } catch (_) {
-      _fallbackToDemo();
     }
   }
 
@@ -216,6 +219,25 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         time: '周一',
         initial: '孙',
         avatarColor: CupertinoColors.systemRed,
+      ),
+      // 测试账号（用于实时消息角标验证）
+      ChatModel(
+        name: '测试账号1',
+        lastMessage: '',
+        time: '',
+        unreadCount: 0,
+        initial: '测',
+        avatarColor: CupertinoColors.systemIndigo,
+        targetUserId: '18955091111',
+      ),
+      ChatModel(
+        name: '测试账号2',
+        lastMessage: '',
+        time: '',
+        unreadCount: 0,
+        initial: '测',
+        avatarColor: CupertinoColors.systemTeal,
+        targetUserId: '17612025678',
       ),
     ];
 
@@ -600,21 +622,37 @@ class _ChatListItemState extends State<_ChatListItem> {
                                 ),
                               ),
                               if (chat.unreadCount > 0) ...[
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 4),
                                 Container(
-                                  width: 20,
-                                  height: 20,
-                                  decoration: const BoxDecoration(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
                                     color: CupertinoColors.activeBlue,
-                                    shape: BoxShape.circle,
+                                    borderRadius: const BorderRadius.all(
+                                        Radius.circular(11)),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color:
+                                            CupertinoColors.activeBlue
+                                                .withAlpha(77),
+                                        blurRadius: 3,
+                                        offset: const Offset(0, 1),
+                                      ),
+                                    ],
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 20,
+                                    minHeight: 20,
                                   ),
                                   alignment: Alignment.center,
                                   child: Text(
-                                    chat.unreadCount > 99 ? '99+' : '${chat.unreadCount}',
+                                    chat.unreadCount > 99
+                                        ? '99+'
+                                        : '${chat.unreadCount}',
                                     style: const TextStyle(
                                       color: CupertinoColors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ),

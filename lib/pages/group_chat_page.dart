@@ -244,7 +244,7 @@ class _MemberBar extends StatelessWidget {
   }
 
   @override
-  /// 构建群聊界面
+  /// 构建群聊成员横排，支持水平滑动
   Widget build(BuildContext context) {
     final allMembers = members;
     const maxShow = 8;
@@ -262,14 +262,17 @@ class _MemberBar extends StatelessWidget {
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            for (int idx = 0; idx < showCount; idx++)
+            for (int idx = 0; idx < showCount; idx++) ...[
               _buildMemberItem(context, allMembers[idx]),
+              const SizedBox(width: 14),
+            ],
             if (overflow > 0)
               _buildOverflowItem(context, overflow),
+            const SizedBox(width: 4), // trailing gap for comfort
           ],
         ),
       ),
@@ -279,7 +282,7 @@ class _MemberBar extends StatelessWidget {
   Widget _buildMemberItem(BuildContext context, String name) {
     final isSelf = name == '自己';
     final child = SizedBox(
-      width: 70,
+      width: 85,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -325,7 +328,7 @@ class _MemberBar extends StatelessWidget {
 
   Widget _buildOverflowItem(BuildContext context, int overflow) {
     return SizedBox(
-      width: 50,
+      width: 55,
       child: GestureDetector(
         onTap: () => () /* FIXED: removed print */,
         child: Column(

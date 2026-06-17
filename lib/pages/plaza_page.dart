@@ -17,6 +17,8 @@ class _FeedItem {
   int likes;
   int comments;
   final String time;
+  final double distance; // 距离(km)，0表示不显示
+  final bool isSelf; // 自己发布的动态
 
   _FeedItem({
     required this.name,
@@ -29,6 +31,8 @@ class _FeedItem {
     this.likes = 0,
     this.comments = 0,
     required this.time,
+    this.distance = 0,
+    this.isSelf = false,
   });
 }
 
@@ -37,6 +41,7 @@ class _FeedItem {
 // ---------------------------------------------------------------------------
 
 final List<_FeedItem> _feedItems = [
+  // ---- 关注 Tab（2条） ----
   _FeedItem(
     name: '张三',
     initial: '张',
@@ -47,6 +52,7 @@ final List<_FeedItem> _feedItems = [
     likes: 12,
     comments: 3,
     time: '2小时前',
+    distance: 3.2,
   ),
   _FeedItem(
     name: '李四',
@@ -57,49 +63,80 @@ final List<_FeedItem> _feedItems = [
     likes: 8,
     comments: 1,
     time: '3小时前',
+    distance: 7.8,
   ),
+  // ---- 推荐 Tab（全部6条可见，这里放额外的推荐专属） ----
   _FeedItem(
     name: '王五',
     initial: '王',
     color: CupertinoColors.systemOrange,
-    content: '【视频】周末Vlog',
+    content: '【视频】周末Vlog，打卡网红景点',
     category: _FeedCategory.recommend,
     likes: 25,
     comments: 7,
     time: '5小时前',
+    distance: 5.1,
   ),
   _FeedItem(
     name: '项目讨论群',
     initial: '项',
     color: CupertinoColors.systemGreen,
-    content: '群文件已更新，大家查看',
+    content: '群文件已更新，大家查看最新设计稿',
     isGroup: true,
     category: _FeedCategory.recommend,
     likes: 5,
     comments: 2,
     time: '昨天',
+    distance: 0, // 群聊不显示距离
   ),
   _FeedItem(
     name: '赵六',
     initial: '赵',
     color: CupertinoColors.systemPurple,
-    content: '杭州西湖，周末打卡！',
+    content: '杭州西湖断桥残雪，周末打卡！',
     imageCount: 3,
-    category: _FeedCategory.local,
+    category: _FeedCategory.recommend,
     likes: 18,
     comments: 4,
     time: '昨天',
+    distance: 9.2,
   ),
   _FeedItem(
     name: '钱七',
     initial: '钱',
     color: CupertinoColors.systemPink,
-    content: '推荐这家餐厅，味道超赞',
+    content: '推荐这家日料餐厅，三文鱼超赞',
+    imageCount: 1,
+    category: _FeedCategory.recommend,
+    likes: 10,
+    comments: 0,
+    time: '2天前',
+    distance: 6.7,
+  ),
+  // ---- 同城 Tab（2条，距离较近） ----
+  _FeedItem(
+    name: '赵六',
+    initial: '赵',
+    color: CupertinoColors.systemPurple,
+    content: '杭州西湖断桥残雪，周末打卡！',
+    imageCount: 3,
+    category: _FeedCategory.local,
+    likes: 18,
+    comments: 4,
+    time: '昨天',
+    distance: 1.2,
+  ),
+  _FeedItem(
+    name: '钱七',
+    initial: '钱',
+    color: CupertinoColors.systemPink,
+    content: '推荐这家日料餐厅，三文鱼超赞',
     imageCount: 1,
     category: _FeedCategory.local,
     likes: 10,
     comments: 0,
     time: '2天前',
+    distance: 0.8,
   ),
 ];
 
@@ -118,31 +155,11 @@ class _PlazaPageState extends State<PlazaPage> {
   int _selectedSegment = 0;
   late List<_FeedItem> _items;
   final Set<String> _likedNames = {};
+  final Set<String> _followingNames = {};
 
-  /// Map raw index from demo data to the display index within filtered list.
-  int _globalIndex(int filteredIndex) {
-    final filtered = _getFilteredItems();
-    if (filteredIndex < 0 || filteredIndex >= filtered.length) return filteredIndex;
-    return _items.indexOf(filtered[filteredIndex]);
-  }
-
-  List<_FeedItem> _getFilteredItems() {
-    switch (_selectedSegment) {
-      case 0: // 关注
-        return _items.where((e) => e.category == _FeedCategory.follow).toList();
-      case 1: // 推荐 — 全部
-        return _items;
-      case 2: // 同城
-        return _items.where((e) => e.category == _FeedCategory.local).toList();
-      default:
-        return _items;
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _items = _feedItems.map((e) => _FeedItem(
+  /// 从原始 demo 数据重新克隆一份列表
+  List<_FeedItem> _cloneFromDemo() {
+    return _feedItems.map((e) => _FeedItem(
       name: e.name,
       initial: e.initial,
       color: e.color,
@@ -153,15 +170,61 @@ class _PlazaPageState extends State<PlazaPage> {
       likes: e.likes,
       comments: e.comments,
       time: e.time,
+      distance: e.distance,
+      isSelf: e.isSelf,
     )).toList();
   }
 
+  /// Map raw index from demo data to the display index within filtered list.
+  int _globalIndex(int filteredIndex) {
+    final filtered = _getFilteredItems();
+    if (filteredIndex < 0 || filteredIndex >= filtered.length) return filteredIndex;
+    return _items.indexOf(filtered[filteredIndex]);
+  }
+
+  List<_FeedItem> _getFilteredItems() {
+    switch (_selectedSegment) {
+      case 0: // 关注 — 仅显示 follow 分类
+        return _items.where((e) => e.category == _FeedCategory.follow).toList();
+      case 1: // 推荐 — 不显示 local 分类（避免与同城重复）
+        return _items.where((e) => e.category != _FeedCategory.local).toList();
+      case 2: // 同城 — 仅显示 local 分类
+        return _items.where((e) => e.category == _FeedCategory.local).toList();
+      default:
+        return _items;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _items = _cloneFromDemo();
+  }
+
+  /// 下拉刷新：重新加载数据（模拟延迟800ms后恢复）
   Future<void> _onRefresh() async {
     await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) {
+      setState(() {
+        _items = _cloneFromDemo();
+      });
+    }
+  }
+
+  /// 关注/取消关注
+  void _toggleFollow(String name) {
+    setState(() {
+      if (_followingNames.contains(name)) {
+        _followingNames.remove(name);
+      } else {
+        _followingNames.add(name);
+      }
+    });
   }
 
   void _toggleLike(int filteredIndex) {
     final gi = _globalIndex(filteredIndex);
+    if (gi < 0 || gi >= _items.length) return;
     final name = _items[gi].name;
     setState(() {
       if (_likedNames.contains(name)) {
@@ -255,9 +318,12 @@ class _PlazaPageState extends State<PlazaPage> {
                     final items = _getFilteredItems();
                     final item = items[index];
                     return _FeedCard(
+                      key: ValueKey('${_selectedSegment}_${item.name}_$index'),
                       item: item,
                       isLiked: _likedNames.contains(item.name),
+                      isFollowing: _followingNames.contains(item.name),
                       onLike: () => _toggleLike(index),
+                      onFollow: () => _toggleFollow(item.name),
                       onTap: () => debugPrint('查看动态详情：${item.name} - ${item.content}'),
                     );
                   },
@@ -327,19 +393,60 @@ class _PlazaPageState extends State<PlazaPage> {
 }
 
 // ---------------------------------------------------------------------------
+// Follow Button (in-header)
+// ---------------------------------------------------------------------------
+
+/// 关注/取消关注按钮
+class _FollowButton extends StatelessWidget {
+  final bool isFollowing;
+  final VoidCallback onTap;
+
+  const _FollowButton({required this.isFollowing, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: isFollowing
+          ? const Text(
+              '已关注',
+              style: TextStyle(
+                fontSize: 12,
+                color: CupertinoColors.systemGrey,
+                fontWeight: FontWeight.w400,
+              ),
+            )
+          : const Text(
+              '+ 关注',
+              style: TextStyle(
+                fontSize: 12,
+                color: CupertinoColors.activeBlue,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Feed Card
 // ---------------------------------------------------------------------------
 
 class _FeedCard extends StatelessWidget {
   final _FeedItem item;
   final bool isLiked;
+  final bool isFollowing;
   final VoidCallback onLike;
+  final VoidCallback onFollow;
   final VoidCallback onTap;
 
   const _FeedCard({
+    super.key,
     required this.item,
     required this.isLiked,
+    required this.isFollowing,
     required this.onLike,
+    required this.onFollow,
     required this.onTap,
   });
 
@@ -403,18 +510,23 @@ class _FeedCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          // Name + time
+          // Name + distance + time
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Row 1: 用户名 + 群聊图标 + 关注按钮
                 Row(
                   children: [
-                    Text(
-                      item.name,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
+                    Flexible(
+                      child: Text(
+                        item.name,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (item.isGroup) ...[
@@ -425,14 +537,43 @@ class _FeedCard extends StatelessWidget {
                         color: CupertinoColors.systemGrey,
                       ),
                     ],
+                    // 关注按钮（非自己发布的动态才显示）
+                    if (!item.isSelf) ...[
+                      const SizedBox(width: 8),
+                      _FollowButton(
+                        isFollowing: isFollowing,
+                        onTap: onFollow,
+                      ),
+                    ],
                   ],
                 ),
-                Text(
-                  item.time,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: CupertinoColors.systemGrey,
-                  ),
+                // Row 2: 距离 + 时间
+                Row(
+                  children: [
+                    if (item.distance > 0) ...[
+                      Text(
+                        '${item.distance.toStringAsFixed(1)}km',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: CupertinoColors.systemGrey,
+                        ),
+                      ),
+                      const Text(
+                        ' · ',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: CupertinoColors.systemGrey,
+                        ),
+                      ),
+                    ],
+                    Text(
+                      item.time,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: CupertinoColors.systemGrey,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

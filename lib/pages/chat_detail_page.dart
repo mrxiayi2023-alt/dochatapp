@@ -134,43 +134,51 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     // Load chat history from API
     await _loadHistory();
 
-    // 进入聊天页面 → 标记该会话为已读（后端 API + 本地状态）
-    await _markConversationRead();
-
+    // Show messages with red dots FIRST, then mark as read
     if (mounted) {
       setState(() => _loadingHistory = false);
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     }
+
+    // 进入聊天页面 → 标记该会话为已读（红点先显示再自动消失）
+    // Use post-frame callback so red dots are visible briefly before clearing
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _markConversationRead();
+    });
   }
 
   /// 标记当前会话所有消息为已读（后端预留 + 本地状态）
+  /// 进入聊天页后红点先显示，再自动消失
   Future<void> _markConversationRead() async {
     final otherId = widget.targetUserId;
-    if (otherId == null || otherId.isEmpty) return;
 
-    // 1) 调用后端 API（接口暂未实现时静默忽略）
-    try {
-      await ApiService.instance.markConversationRead(otherId);
-    } catch (_) {
-      // 后端未实现，忽略
+    // 1) 调用后端 API（仅在有效的 targetUserId 时调用）
+    if (otherId != null && otherId.isNotEmpty) {
+      try {
+        await ApiService.instance.markConversationRead(otherId);
+      } catch (_) {
+        // 后端未实现，忽略
+      }
     }
 
-    // 2) 本地状态标记
-    if (mounted) {
-      setState(() {
-        for (int i = 0; i < _messages.length; i++) {
-          final msg = _messages[i];
-          if (msg.isMe && !msg.isRead) {
-            // 将我发送的、未读的消息标记为已读（已读回执）
-            _messages[i] = msg.copyWith(isRead: true);
-          }
-          if (!msg.isMe && msg.isNew) {
-            // 清除对方发来的新消息标记
-            _messages[i] = msg.copyWith(isNew: false);
-          }
+    // 确保红点至少显示 2.5 秒，用户能看到
+    await Future.delayed(const Duration(milliseconds: 2500));
+
+    // 2) 本地状态标记 — 无论 API 是否调用，都必须清除 isNew 标记
+    if (!mounted) return;
+    setState(() {
+      for (int i = 0; i < _messages.length; i++) {
+        final msg = _messages[i];
+        if (msg.isMe && !msg.isRead) {
+          // 将我发送的、未读的消息标记为已读（已读回执）
+          _messages[i] = msg.copyWith(isRead: true);
         }
-      });
-    }
+        if (!msg.isMe && msg.isNew) {
+          // 清除对方发来的新消息标记（红点消失）
+          _messages[i] = msg.copyWith(isNew: false);
+        }
+      }
+    });
   }
 
   // -----------------------------------------------------------------------
@@ -381,7 +389,7 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
       Message(text: '太棒了，那我订酒店', isMe: true, time: '14:36', isRead: false,
           sentAt: now.subtract(const Duration(minutes: 30))), // <24h → 可撤回
       Message(text: 'ok，到时候见👋', isMe: false, time: '14:37',
-          sentAt: now.subtract(const Duration(minutes: 20))),
+          sentAt: now.subtract(const Duration(minutes: 20)), isNew: true),
     ];
     if (mounted) setState(() => _messages.addAll(demoMessages));
   }
@@ -410,6 +418,7 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
         isMe: false,
         time: wsMsg.time,
         fromId: wsMsg.fromId,
+        isNew: true, // 新消息显示红点
       ));
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
@@ -793,13 +802,20 @@ class _MessageBubble extends StatelessWidget {
             // 新消息红点（对方发来的未读消息）
             if (!isMe && message.isNew)
               Padding(
-                padding: const EdgeInsets.only(right: 4, bottom: 6),
+                padding: const EdgeInsets.only(right: 6, bottom: 6),
                 child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
                     color: CupertinoColors.destructiveRed,
                     shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: CupertinoColors.destructiveRed.withAlpha(100),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
                   ),
                 ),
               ),

@@ -14,7 +14,10 @@ const String kResultAcceptedPhone = 'accepted_phone';
 const String kResultAcceptedUserId = 'accepted_user_id';
 
 class FriendRequestsPage extends StatefulWidget {
-  const FriendRequestsPage({super.key});
+  /// 每次接受/拒绝申请后回调，传递剩余未处理申请数
+  final void Function(int remaining)? onCountChanged;
+
+  const FriendRequestsPage({super.key, this.onCountChanged});
 
   @override
   State<FriendRequestsPage> createState() => _FriendRequestsPageState();
@@ -90,6 +93,8 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
     // 从本地列表移除
     if (mounted) {
       setState(() => _requests.removeWhere((r) => r['id'] == requestId));
+      // 立即通知上一页剩余未处理申请数
+      widget.onCountChanged?.call(_requests.length);
       _showToast('已接受好友申请');
       // 将接受结果返回给上一页（包含用户 ID，便于 chat_page 创建新会话）
       Navigator.of(context).pop({
@@ -114,7 +119,8 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
     }
     if (mounted) {
       setState(() => _requests.removeWhere((r) => r['id'] == requestId));
-      // 拒绝后不传回特殊结果，但可以刷新角标
+      // 立即通知上一页剩余未处理申请数
+      widget.onCountChanged?.call(_requests.length);
     }
   }
 
