@@ -6,6 +6,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_model.dart';
 import '../services/api_service.dart';
@@ -100,6 +101,12 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
   bool _isOtherTyping = false; // 对方是否正在输入
   Timer? _selfTypingTimer;     // 自己停止输入3秒后自动隐藏
   Timer? _otherTypingTimer;    // 对方停止输入3秒后自动隐藏
+
+  // ---- 收藏 / 多选 / 引用 ----
+  final Set<String> _favoritedMessageIds = {};   // 已收藏消息 ID 集合
+  bool _isMultiSelectMode = false;               // 是否处于多选模式
+  final Set<String> _selectedMessageIds = {};    // 多选模式下已选消息 ID
+  Message? _quotedMessage;                       // 当前引用的消息
 
   @override
   /// 初始化状态，注册WebSocket监听
@@ -206,9 +213,163 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        setState(() => _messages.removeWhere((m) => m.id == id));
+        setState(() {
+          _messages.removeWhere((m) => m.id == id);
+          _favoritedMessageIds.remove(id);
+          _selectedMessageIds.remove(id);
+        });
       }
     });
+  }
+
+  // -----------------------------------------------------------------------
+  // 复制 / 引用 / 收藏 / 多选
+  // -----------------------------------------------------------------------
+
+  /// 复制消息文字到剪贴板
+  void _copyMessage(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    if (mounted) {
+      showCupertinoDialog(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          content: const Text('已复制到剪贴板'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('确定'),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  /// 引用消息 — 设置引用并在输入框聚焦
+  void _quoteMessage(Message msg) {
+    setState(() => _quotedMessage = msg);
+    FocusScope.of(context).requestFocus();
+    // 如果不在多选模式，退出多选
+    if (_isMultiSelectMode) _exitMultiSelectMode();
+  }
+
+  /// 切换收藏状态
+  void _toggleFavorite(String msgId) {
+    setState(() {
+      if (_favoritedMessageIds.contains(msgId)) {
+        _favoritedMessageIds.remove(msgId);
+      } else {
+        _favoritedMessageIds.add(msgId);
+      }
+    });
+  }
+
+  /// 进入多选模式（预选当前消息）
+  void _enterMultiSelectMode(String msgId) {
+    setState(() {
+      _isMultiSelectMode = true;
+      _selectedMessageIds.clear();
+      _selectedMessageIds.add(msgId);
+    });
+  }
+
+  /// 在多选模式下切换某条消息的选中状态
+  void _toggleMessageSelection(String msgId) {
+    setState(() {
+      if (_selectedMessageIds.contains(msgId)) {
+        _selectedMessageIds.remove(msgId);
+        // 如果没有选中任何消息，退出多选模式
+        if (_selectedMessageIds.isEmpty) {
+          _isMultiSelectMode = false;
+        }
+      } else {
+        _selectedMessageIds.add(msgId);
+      }
+    });
+  }
+
+  /// 退出多选模式
+  void _exitMultiSelectMode() {
+    setState(() {
+      _isMultiSelectMode = false;
+      _selectedMessageIds.clear();
+    });
+  }
+
+  /// 批量删除选中的消息
+  void _deleteSelectedMessages() {
+    final toDelete = List<String>.from(_selectedMessageIds);
+    setState(() {
+      _messages.removeWhere((m) => toDelete.contains(m.id));
+      for (final id in toDelete) {
+        _favoritedMessageIds.remove(id);
+      }
+      _selectedMessageIds.clear();
+      _isMultiSelectMode = false;
+    });
+  }
+
+  /// 显示收藏消息列表
+  void _showFavoriteList() {
+    final favMsgs = _messages
+        .where((m) => _favoritedMessageIds.contains(m.id))
+        .toList();
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('收藏的消息',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+            Text('${favMsgs.length} 条',
+                style: const TextStyle(
+                    color: CupertinoColors.systemGrey, fontSize: 13)),
+          ],
+        ),
+        message: favMsgs.isEmpty
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Text('暂无收藏',
+                    style: TextStyle(color: CupertinoColors.systemGrey)),
+              )
+            : null,
+        actions: favMsgs.isEmpty
+            ? <Widget>[]
+            : [
+                for (final m in favMsgs)
+                  CupertinoActionSheetAction(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      _copyMessage(m.text);
+                    },
+                    child: Row(
+                      children: [
+                        const Icon(CupertinoIcons.star_fill,
+                            size: 14, color: CupertinoColors.systemYellow),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            m.text,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(m.time,
+                            style: const TextStyle(
+                                color: CupertinoColors.systemGrey,
+                                fontSize: 12)),
+                      ],
+                    ),
+                  ),
+              ],
+        cancelButton: CupertinoActionSheetAction(
+          child: const Text('关闭'),
+          onPressed: () => Navigator.of(ctx).pop(),
+        ),
+      ),
+    );
   }
 
   // -----------------------------------------------------------------------
@@ -424,7 +585,7 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
-  /// 发送文本消息
+  /// 发送文本消息（支持引用回复）
   Future<void> _sendMessage() async {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
@@ -433,11 +594,18 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     final timeStr =
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
-    final msg = Message(text: text, isMe: true, time: timeStr, isRead: false, sentAt: now);
+    // 如果正在引用消息，附带引用前缀
+    final quoted = _quotedMessage;
+    final finalText = quoted != null
+        ? '「回复：${quoted.text.length > 30 ? '${quoted.text.substring(0, 30)}…' : quoted.text}」\n$text'
+        : text;
+
+    final msg = Message(text: finalText, isMe: true, time: timeStr, isRead: false, sentAt: now);
 
     setState(() {
       _messages.add(msg);
       _textController.clear();
+      _quotedMessage = null; // 清除引用
     });
 
     _scrollToBottom();
@@ -446,7 +614,7 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     final otherId = widget.targetUserId;
     if (otherId != null && !_useDemoFallback) {
       try {
-        await ApiService.instance.sendMessage(toId: otherId, content: text);
+        await ApiService.instance.sendMessage(toId: otherId, content: finalText);
       } catch (_) {
         // Silent fail — message still shows locally
       }
@@ -507,6 +675,39 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // 收藏列表按钮
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(40, 40),
+              onPressed: _showFavoriteList,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(CupertinoIcons.star, size: 22),
+                  if (_favoritedMessageIds.isNotEmpty)
+                    Positioned(
+                      right: -4,
+                      top: -2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: const BoxDecoration(
+                          color: CupertinoColors.systemYellow,
+                          borderRadius: BorderRadius.all(Radius.circular(8)),
+                        ),
+                        child: Text(
+                          '${_favoritedMessageIds.length}',
+                          style: const TextStyle(
+                            color: CupertinoColors.black,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 4),
             CupertinoButton(
               padding: EdgeInsets.zero,
               minimumSize: const Size(40, 40),
@@ -529,7 +730,10 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
             child: _loadingHistory
                 ? const Center(child: CupertinoActivityIndicator())
                 : GestureDetector(
-                    onTap: () => FocusScope.of(context).unfocus(),
+                    onTap: () {
+                      FocusScope.of(context).unfocus();
+                      if (_isMultiSelectMode) _exitMultiSelectMode();
+                    },
                     child: ListView.builder(
                       controller: _scrollController,
                       padding: const EdgeInsets.only(top: 8, bottom: 8),
@@ -537,28 +741,42 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
                       itemBuilder: (context, index) {
                         final msg = _messages[index];
                         final showTime = _shouldShowTime(index);
-                        return Column(
-                          children: [
-                            if (showTime)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                child: Text(
-                                  msg.time,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: CupertinoColors.systemGrey,
+                        final isSelected = _selectedMessageIds.contains(msg.id);
+                        final isFav = _favoritedMessageIds.contains(msg.id);
+
+                        return GestureDetector(
+                          onTap: _isMultiSelectMode
+                              ? () => _toggleMessageSelection(msg.id)
+                              : null,
+                          child: Column(
+                            children: [
+                              if (showTime)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  child: Text(
+                                    msg.time,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: CupertinoColors.systemGrey,
+                                    ),
                                   ),
                                 ),
+                              _MessageBubble(
+                                message: msg,
+                                isSelected: isSelected,
+                                isMultiSelectMode: _isMultiSelectMode,
+                                isFavorited: isFav,
+                                onRecall: msg.canRecall
+                                    ? () => _onRecallMessage(index)
+                                    : null,
+                                onDelete: () => _onDeleteMessage(index),
+                                onCopy: () => _copyMessage(msg.text),
+                                onQuote: () => _quoteMessage(msg),
+                                onFavorite: () => _toggleFavorite(msg.id),
+                                onMultiSelect: () => _enterMultiSelectMode(msg.id),
                               ),
-                            _MessageBubble(
-                              message: msg,
-                              onRecall: msg.canRecall
-                                  ? () => _onRecallMessage(index)
-                                  : null,
-                              onDeleteLocal: () => _onDeleteMessage(index, forBoth: false),
-                              onDeleteBoth: () => _onDeleteMessage(index, forBoth: true),
-                            ),
-                          ],
+                            ],
+                          ),
                         );
                       },
                     ),
@@ -567,11 +785,164 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
           // 输入中指示器
           if (_isSelfTyping) const _TypingIndicator(label: '正在输入…'),
           if (_isOtherTyping) const _TypingIndicator(label: '对方正在输入…'),
+          // 引用消息预览条
+          if (_quotedMessage != null) _QuotePreviewBar(
+            quotedMessage: _quotedMessage!,
+            onCancel: () => setState(() => _quotedMessage = null),
+          ),
+          // 多选模式底部操作栏
+          if (_isMultiSelectMode) _MultiSelectBar(
+            selectedCount: _selectedMessageIds.length,
+            onDelete: _deleteSelectedMessages,
+            onCancel: _exitMultiSelectMode,
+          ),
           _BottomBar(
             controller: _textController,
             onSend: _sendMessage,
+            hasQuote: _quotedMessage != null,
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Quote Preview Bar
+// ---------------------------------------------------------------------------
+
+/// 引用消息预览条，显示在输入框上方
+class _QuotePreviewBar extends StatelessWidget {
+  final Message quotedMessage;
+  final VoidCallback onCancel;
+
+  const _QuotePreviewBar({
+    required this.quotedMessage,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final preview = quotedMessage.text.length > 50
+        ? '${quotedMessage.text.substring(0, 50)}…'
+        : quotedMessage.text;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: const BoxDecoration(
+        color: CupertinoColors.systemGrey6,
+        border: Border(
+          top: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            height: 36,
+            decoration: BoxDecoration(
+              color: CupertinoColors.activeBlue,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '引用 ${quotedMessage.isMe ? '自己' : '对方'}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: CupertinoColors.activeBlue,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  preview,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: CupertinoColors.systemGrey,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          CupertinoButton(
+            padding: EdgeInsets.zero,
+            minimumSize: const Size(32, 32),
+            onPressed: onCancel,
+            child: const Icon(CupertinoIcons.xmark_circle_fill,
+                size: 20, color: CupertinoColors.systemGrey),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Multi-Select Bottom Bar
+// ---------------------------------------------------------------------------
+
+/// 多选模式底部操作栏
+class _MultiSelectBar extends StatelessWidget {
+  final int selectedCount;
+  final VoidCallback onDelete;
+  final VoidCallback onCancel;
+
+  const _MultiSelectBar({
+    required this.selectedCount,
+    required this.onDelete,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: const BoxDecoration(
+        color: CupertinoColors.systemGrey6,
+        border: Border(
+          top: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // 取消按钮
+            CupertinoButton(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              borderRadius: BorderRadius.circular(8),
+              color: CupertinoColors.systemGrey4,
+              onPressed: onCancel,
+              child: const Text('取消',
+                  style: TextStyle(fontSize: 14, color: CupertinoColors.black)),
+            ),
+            const Spacer(),
+            // 已选数量
+            Text(
+              '已选 $selectedCount 条',
+              style: const TextStyle(
+                  fontSize: 14, color: CupertinoColors.systemGrey),
+            ),
+            const Spacer(),
+            // 删除按钮
+            CupertinoButton(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              borderRadius: BorderRadius.circular(8),
+              color: CupertinoColors.destructiveRed,
+              onPressed: selectedCount > 0 ? onDelete : null,
+              child: const Text('🗑️ 删除',
+                  style: TextStyle(fontSize: 14, color: CupertinoColors.white)),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -584,8 +955,13 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
 class _BottomBar extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
+  final bool hasQuote;
 
-  const _BottomBar({required this.controller, required this.onSend});
+  const _BottomBar({
+    required this.controller,
+    required this.onSend,
+    this.hasQuote = false,
+  });
 
   @override
   State<_BottomBar> createState() => _BottomBarState();
@@ -626,7 +1002,7 @@ class _BottomBarState extends State<_BottomBar> {
               Expanded(
                 child: CupertinoTextField(
                   controller: widget.controller,
-                  placeholder: '输入消息...',
+                  placeholder: widget.hasQuote ? '回复引用…' : '输入消息...',
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 8,
@@ -692,55 +1068,129 @@ class _BottomBarState extends State<_BottomBar> {
 
 class _MessageBubble extends StatelessWidget {
   final Message message;
-  final VoidCallback? onRecall;        // 撤回回调（null = 不可撤回）
-  final VoidCallback? onDeleteLocal;   // 单向删除回调
-  final VoidCallback? onDeleteBoth;    // 双向删除回调
+  final bool isSelected;
+  final bool isMultiSelectMode;
+  final bool isFavorited;
+  final VoidCallback? onRecall;
+  final VoidCallback? onDelete;
+  final VoidCallback? onCopy;
+  final VoidCallback? onQuote;
+  final VoidCallback? onFavorite;
+  final VoidCallback? onMultiSelect;
 
   const _MessageBubble({
     required this.message,
+    this.isSelected = false,
+    this.isMultiSelectMode = false,
+    this.isFavorited = false,
     this.onRecall,
-    this.onDeleteLocal,
-    this.onDeleteBoth,
+    this.onDelete,
+    this.onCopy,
+    this.onQuote,
+    this.onFavorite,
+    this.onMultiSelect,
   });
 
-  /// 弹出消息操作 ActionSheet
+  /// 弹出消息操作 ActionSheet（5个选项）
   void _showMessageActions(BuildContext context) {
+    // 多选模式下不弹出长按菜单
+    if (isMultiSelectMode) return;
+
     showCupertinoModalPopup(
       context: context,
       builder: (ctx) {
-        final actions = <Widget>[
-          // 撤回（仅可撤回的消息显示）
-          if (onRecall != null)
+        return CupertinoActionSheet(
+          title: const Text('消息操作'),
+          actions: [
+            // 📋 复制
             CupertinoActionSheetAction(
               onPressed: () {
                 Navigator.of(ctx).pop();
-                onRecall?.call();
+                onCopy?.call();
               },
-              child: const Text('撤回'),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.doc_on_doc, size: 18,
+                      color: CupertinoColors.activeBlue),
+                  SizedBox(width: 8),
+                  Text('📋 复制'),
+                ],
+              ),
             ),
-          // 单向删除
-          CupertinoActionSheetAction(
-            isDestructiveAction: true,
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              onDeleteLocal?.call();
-            },
-            child: const Text('单向删除'),
-          ),
-          // 双向删除
-          CupertinoActionSheetAction(
-            isDestructiveAction: true,
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              onDeleteBoth?.call();
-            },
-            child: const Text('双向删除'),
-          ),
-        ];
-
-        return CupertinoActionSheet(
-          title: const Text('选择操作'),
-          actions: actions,
+            // 💬 引用
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                onQuote?.call();
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.reply, size: 18,
+                      color: CupertinoColors.activeBlue),
+                  SizedBox(width: 8),
+                  Text('💬 引用'),
+                ],
+              ),
+            ),
+            // ⭐ 收藏
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                onFavorite?.call();
+              },
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    isFavorited
+                        ? CupertinoIcons.star_fill
+                        : CupertinoIcons.star,
+                    size: 18,
+                    color: isFavorited
+                        ? CupertinoColors.systemYellow
+                        : CupertinoColors.activeBlue,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(isFavorited ? '⭐ 取消收藏' : '⭐ 收藏'),
+                ],
+              ),
+            ),
+            // ☑️ 多选
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                onMultiSelect?.call();
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.check_mark_circled, size: 18,
+                      color: CupertinoColors.activeBlue),
+                  SizedBox(width: 8),
+                  Text('☑️ 多选'),
+                ],
+              ),
+            ),
+            // 撤回（仅自己发送 + 24h内）
+            if (onRecall != null)
+              CupertinoActionSheetAction(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  onRecall?.call();
+                },
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(CupertinoIcons.arrow_uturn_left, size: 18,
+                        color: CupertinoColors.systemOrange),
+                    SizedBox(width: 8),
+                    Text('撤回'),
+                  ],
+                ),
+              ),
+          ],
           cancelButton: CupertinoActionSheetAction(
             child: const Text('取消'),
             onPressed: () => Navigator.of(ctx).pop(),
@@ -755,7 +1205,7 @@ class _MessageBubble extends StatelessWidget {
     final isMe = message.isMe;
     final isRecalled = message.isRecalled;
 
-    // ---- 构建消息内容 Widget（正常气泡 / 已撤回灰色块） ----
+    // ---- 构建消息内容 Widget ----
     Widget buildContent() {
       if (isRecalled) {
         return Padding(
@@ -791,6 +1241,9 @@ class _MessageBubble extends StatelessWidget {
           isMe ? const Color(0xFF007AFF) : const Color(0xFFE9E9EB);
       final Color textColor =
           isMe ? CupertinoColors.white : CupertinoColors.black;
+      final Color selectedBg = isMe
+          ? CupertinoColors.activeBlue.withAlpha(200)
+          : CupertinoColors.systemGrey4;
 
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
@@ -799,8 +1252,14 @@ class _MessageBubble extends StatelessWidget {
               isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // 新消息红点（对方发来的未读消息）
-            if (!isMe && message.isNew)
+            // ---- 多选模式选择框（左侧） ----
+            if (isMultiSelectMode && !isMe)
+              Padding(
+                padding: const EdgeInsets.only(right: 8, bottom: 6),
+                child: _SelectionCircle(isSelected: isSelected),
+              ),
+            // 新消息红点（对方发来的未读消息，非多选模式）
+            if (!isMe && message.isNew && !isMultiSelectMode)
               Padding(
                 padding: const EdgeInsets.only(right: 6, bottom: 6),
                 child: Container(
@@ -824,7 +1283,7 @@ class _MessageBubble extends StatelessWidget {
               CustomPaint(
                 size: const Size(10, 12),
                 painter: _TailPainter(
-                  color: bgColor,
+                  color: isSelected ? selectedBg : bgColor,
                   pointingRight: false,
                 ),
               ),
@@ -836,7 +1295,7 @@ class _MessageBubble extends StatelessWidget {
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: bgColor,
+                  color: isSelected ? selectedBg : bgColor,
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(16),
                     topRight: const Radius.circular(16),
@@ -848,9 +1307,23 @@ class _MessageBubble extends StatelessWidget {
                         : const Radius.circular(16),
                   ),
                 ),
-                child: Text(
-                  message.text,
-                  style: TextStyle(color: textColor, fontSize: 16),
+                child: Column(
+                  crossAxisAlignment:
+                      isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 收藏星标
+                    if (isFavorited)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 4),
+                        child: Icon(CupertinoIcons.star_fill,
+                            size: 12, color: CupertinoColors.systemYellow),
+                      ),
+                    Text(
+                      message.text,
+                      style: TextStyle(color: textColor, fontSize: 16),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -859,21 +1332,65 @@ class _MessageBubble extends StatelessWidget {
               CustomPaint(
                 size: const Size(10, 12),
                 painter: _TailPainter(
-                  color: bgColor,
+                  color: isSelected ? selectedBg : bgColor,
                   pointingRight: true,
                 ),
               ),
             // 已读/未读状态（仅对发出的消息显示）
-            if (isMe) _ReadStatus(isRead: message.isRead),
+            if (isMe && !isMultiSelectMode) _ReadStatus(isRead: message.isRead),
+            // ---- 多选模式选择框（右侧，自己发送的消息） ----
+            if (isMultiSelectMode && isMe)
+              Padding(
+                padding: const EdgeInsets.only(left: 8, bottom: 6),
+                child: _SelectionCircle(isSelected: isSelected),
+              ),
           ],
         ),
       );
     }
 
-    // ---- 用 GestureDetector 包裹所有消息类型，支持长按 ----
+    // 多选模式：用 GestureDetector 包裹（父级 onTap 来自 ListView itemBuilder）
+    // 长按菜单仅在非多选模式下触发
+    if (isMultiSelectMode) {
+      return buildContent();
+    }
+
     return GestureDetector(
       onLongPress: () => _showMessageActions(context),
       child: buildContent(),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Selection Circle (multi-select mode)
+// ---------------------------------------------------------------------------
+
+class _SelectionCircle extends StatelessWidget {
+  final bool isSelected;
+  const _SelectionCircle({required this.isSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: isSelected
+            ? CupertinoColors.activeBlue
+            : CupertinoColors.white,
+        border: Border.all(
+          color: isSelected
+              ? CupertinoColors.activeBlue
+              : CupertinoColors.systemGrey3,
+          width: 2,
+        ),
+      ),
+      child: isSelected
+          ? const Icon(CupertinoIcons.check_mark,
+              size: 12, color: CupertinoColors.white)
+          : null,
     );
   }
 }
