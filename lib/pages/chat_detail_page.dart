@@ -31,6 +31,9 @@ class Message {
   final bool isRecalled; // 是否已被撤回
   final bool isNew; // 对方发来的新消息（未读标记，进入页面后清除）
   final DateTime sentAt; // 发送时间（用于 24h 撤回判断）
+  final bool autoDelete; // 阅后即焚标记
+  final Duration? deleteAfter; // 阅后即焚倒计时
+  final bool isDestroyed; // 是否已销毁
 
   Message({
     String? id,
@@ -42,11 +45,21 @@ class Message {
     this.isRecalled = false,
     this.isNew = false,
     DateTime? sentAt,
+    this.autoDelete = false,
+    this.deleteAfter,
+    this.isDestroyed = false,
   }) : id = id ?? 'msg_${DateTime.now().millisecondsSinceEpoch}_${_nextId++}',
        sentAt = sentAt ?? DateTime.now();
 
   /// 创建一份拷贝，可覆盖部分字段
-  Message copyWith({bool? isRead, bool? isRecalled, bool? isNew}) {
+  Message copyWith({
+    bool? isRead,
+    bool? isRecalled,
+    bool? isNew,
+    bool? autoDelete,
+    Duration? deleteAfter,
+    bool? isDestroyed,
+  }) {
     return Message(
       id: id,
       text: text,
@@ -57,12 +70,15 @@ class Message {
       isRecalled: isRecalled ?? this.isRecalled,
       isNew: isNew ?? this.isNew,
       sentAt: sentAt,
+      autoDelete: autoDelete ?? this.autoDelete,
+      deleteAfter: deleteAfter ?? this.deleteAfter,
+      isDestroyed: isDestroyed ?? this.isDestroyed,
     );
   }
 
   /// 该消息是否可撤回（自己发送 + 24 小时内 + 未被撤回）
   bool get canRecall =>
-      isMe && !isRecalled &&
+      isMe && !isRecalled && !isDestroyed &&
       DateTime.now().difference(sentAt).inHours < 24;
 }
 
@@ -108,6 +124,11 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
   final Set<String> _selectedMessageIds = {};    // 多选模式下已选消息 ID
   Message? _quotedMessage;                       // 当前引用的消息
 
+  // ---- 阅后即焚 ----
+  bool _burnAfterReadEnabled = false;
+  Duration _burnAfterReadDuration = const Duration(minutes: 5);
+  final Map<String, Timer> _autoDeleteTimers = {};
+
   @override
   /// 初始化状态，注册WebSocket监听
   void initState() {
@@ -124,6 +145,10 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     _scrollController.dispose();
     _selfTypingTimer?.cancel();
     _otherTypingTimer?.cancel();
+    for (final timer in _autoDeleteTimers.values) {
+      timer.cancel();
+    }
+    _autoDeleteTimers.clear();
     WebSocketService.shared.offMessage(_onWsMessage);
     super.dispose();
   }
@@ -314,9 +339,127 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     return DateTime.now().difference(msg.sentAt).inHours < 24;
   }
 
+  // -----------------------------------------------------------------------
+  // 阅后即焚
+  // -----------------------------------------------------------------------
+
+  /// 阅后即焚时长选项
+  static const List<({String label, Duration? duration})> _burnOptions = [
+    (label: '关闭', duration: null),
+    (label: '5分钟', duration: Duration(minutes: 5)),
+    (label: '1天', duration: Duration(days: 1)),
+    (label: '7天', duration: Duration(days: 7)),
+    (label: '15天', duration: Duration(days: 15)),
+    (label: '1个月', duration: Duration(days: 30)),
+    (label: '3个月', duration: Duration(days: 90)),
+    (label: '6个月', duration: Duration(days: 180)),
+  ];
+
+  /// 获取当前阅后即焚设置显示文字
+  String get _burnLabel {
+    if (!_burnAfterReadEnabled) return '阅后即焚：关闭';
+    for (final opt in _burnOptions) {
+      if (opt.duration == _burnAfterReadDuration) {
+        return '阅后即焚：${opt.label}';
+      }
+    }
+    return '阅后即焚：5分钟';
+  }
+
+  /// 为消息安排阅后即焚定时器
+  void _scheduleAutoDelete(Message msg) {
+    final dur = msg.deleteAfter;
+    if (dur == null) return;
+    _autoDeleteTimers[msg.id]?.cancel();
+    _autoDeleteTimers[msg.id] = Timer(dur, () => _destroyMessage(msg.id));
+  }
+
+  /// 销毁指定消息（定时器回调）
+  void _destroyMessage(String msgId) {
+    if (!mounted) return;
+    _autoDeleteTimers.remove(msgId);
+    setState(() {
+      final idx = _messages.indexWhere((m) => m.id == msgId);
+      if (idx != -1) {
+        _messages[idx] = _messages[idx].copyWith(isDestroyed: true);
+      }
+    });
+  }
+
+  /// 弹出导航栏设置菜单
+  void _showSettingsMenu() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('设置'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showBurnSettingPicker();
+            },
+            child: Text(_burnLabel),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('取消'),
+        ),
+      ),
+    );
+  }
+
+  /// 弹出阅后即焚时间选择器
+  void _showBurnSettingPicker() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('阅后即焚设置'),
+        actions: _burnOptions.map((opt) {
+          final isSelected = opt.duration == null
+              ? !_burnAfterReadEnabled
+              : (_burnAfterReadEnabled && opt.duration == _burnAfterReadDuration);
+          return CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                if (opt.duration == null) {
+                  _burnAfterReadEnabled = false;
+                  _burnAfterReadDuration = const Duration(minutes: 5);
+                } else {
+                  _burnAfterReadEnabled = true;
+                  _burnAfterReadDuration = opt.duration!;
+                }
+              });
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(opt.label),
+                if (isSelected) ...[
+                  const SizedBox(width: 8),
+                  const Icon(CupertinoIcons.check_mark,
+                      size: 18, color: CupertinoColors.activeBlue),
+                ],
+              ],
+            ),
+          );
+        }).toList(),
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('取消'),
+        ),
+      ),
+    );
+  }
+
   /// 长按消息弹出的操作菜单
   void _showMessageActions(int index) {
     final msg = _messages[index];
+    // 已销毁消息不弹出菜单
+    if (msg.isDestroyed) return;
     final isMe = msg.isMe;
     final canRecall = isMe && !msg.isRecalled && _isWithin24Hours(msg);
 
@@ -648,16 +791,29 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     // Only show messages from the current chat partner
     if (otherId != null && wsMsg.fromId != otherId) return;
 
+    // 阅后即焚：开启后收到的消息也应用当前设置
+    final burnEnabled = _burnAfterReadEnabled;
+    final burnDuration = burnEnabled ? _burnAfterReadDuration : null;
+
+    final incomingMsg = Message(
+      id: wsMsg.msgId ?? '',
+      text: wsMsg.content,
+      isMe: false,
+      time: wsMsg.time,
+      fromId: wsMsg.fromId,
+      isNew: true,
+      autoDelete: burnEnabled,
+      deleteAfter: burnDuration,
+    );
+
     setState(() {
-      _messages.add(Message(
-        id: wsMsg.msgId ?? '',
-        text: wsMsg.content,
-        isMe: false,
-        time: wsMsg.time,
-        fromId: wsMsg.fromId,
-        isNew: true, // 新消息显示红点
-      ));
+      _messages.add(incomingMsg);
     });
+
+    if (burnEnabled && burnDuration != null) {
+      _scheduleAutoDelete(incomingMsg);
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
@@ -676,13 +832,30 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
         ? '「回复：${quoted.text.length > 30 ? '${quoted.text.substring(0, 30)}…' : quoted.text}」\n$text'
         : text;
 
-    final msg = Message(text: finalText, isMe: true, time: timeStr, isRead: false, sentAt: now);
+    // 阅后即焚标记
+    final burnEnabled = _burnAfterReadEnabled;
+    final burnDuration = burnEnabled ? _burnAfterReadDuration : null;
+
+    final msg = Message(
+      text: finalText,
+      isMe: true,
+      time: timeStr,
+      isRead: false,
+      sentAt: now,
+      autoDelete: burnEnabled,
+      deleteAfter: burnDuration,
+    );
 
     setState(() {
       _messages.add(msg);
       _textController.clear();
       _quotedMessage = null; // 清除引用
     });
+
+    // 安排阅后即焚定时器
+    if (burnEnabled && burnDuration != null) {
+      _scheduleAutoDelete(msg);
+    }
 
     _scrollToBottom();
 
@@ -797,11 +970,41 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
               onPressed: () => _startCall('video'),
               child: const Icon(CupertinoIcons.videocam, size: 24),
             ),
+            const SizedBox(width: 4),
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(40, 40),
+              onPressed: _showSettingsMenu,
+              child: const Icon(CupertinoIcons.gear_solid, size: 22),
+            ),
           ],
         ),
       ),
       child: Column(
         children: [
+          // 阅后即焚状态提示条
+          if (_burnAfterReadEnabled)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              color: CupertinoColors.systemYellow.withAlpha(40),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(CupertinoIcons.flame, size: 14,
+                      color: CupertinoColors.systemOrange),
+                  const SizedBox(width: 6),
+                  Text(
+                    _burnLabel,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: CupertinoColors.systemOrange,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: _loadingHistory
                 ? const Center(child: CupertinoActivityIndicator())
@@ -1187,9 +1390,37 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final isMe = message.isMe;
     final isRecalled = message.isRecalled;
+    final isDestroyed = message.isDestroyed;
 
     // ---- 构建消息内容 Widget ----
     Widget buildContent() {
+      // 已销毁消息显示灰色提示，无任何交互
+      if (isDestroyed) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemGrey6,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  '[消息已销毁]',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: CupertinoColors.systemGrey,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
       if (isRecalled) {
         // 「重新编辑」仅对自己撤回的消息显示
         final showReEdit = isMe && onReEdit != null;
@@ -1359,9 +1590,8 @@ class _MessageBubble extends StatelessWidget {
       );
     }
 
-    // 多选模式：用 GestureDetector 包裹（父级 onTap 来自 ListView itemBuilder）
-    // 长按菜单仅在非多选模式下触发
-    if (isMultiSelectMode) {
+    // 多选模式或已销毁消息：不触发长按菜单
+    if (isMultiSelectMode || isDestroyed) {
       return buildContent();
     }
 
