@@ -23,12 +23,12 @@ class _Service {
 }
 
 const List<_Service> _services = [
-  _Service(emoji: '🔒', name: '担保履约', description: '资金托管，安心交易'),
-  _Service(emoji: '🏠', name: '电邮找房', description: '直连房东，无中介费'),
-  _Service(emoji: '💕', name: '电邮婚恋', description: '真实交友，恋爱分数'),
-  _Service(emoji: '💼', name: '电邮招聘', description: '企业直招，信誉保障'),
-  _Service(emoji: '📧', name: '电子邮箱', description: '账号即邮箱，注册即开通'),
-  _Service(emoji: '🛒', name: '电邮商城', description: '闲置有价，工农直供'),
+  _Service(emoji: '🔒', name: '电波担保', description: '资金托管，安心交易'),
+  _Service(emoji: '🛒', name: '电波商城', description: '闲置有价，工农直供'),
+  _Service(emoji: '💕', name: '电波婚恋', description: '真实交友，恋爱分数'),
+  _Service(emoji: '🏠', name: '电波找房', description: '直连房东，无中介费'),
+  _Service(emoji: '💼', name: '电波直聘', description: '企业直招，信誉保障'),
+  _Service(emoji: '📧', name: '电波邮箱', description: '账号即邮箱，注册即开通'),
 ];
 
 class _RecentItem {
@@ -40,9 +40,9 @@ class _RecentItem {
 }
 
 const List<_RecentItem> _recentItems = [
-  _RecentItem(emoji: '🔒', name: '担保履约', time: '2小时前'),
-  _RecentItem(emoji: '📧', name: '电子邮箱', time: '昨天'),
-  _RecentItem(emoji: '🛒', name: '电邮商城', time: '刚刚'),
+  _RecentItem(emoji: '🔒', name: '电波担保', time: '2小时前'),
+  _RecentItem(emoji: '📧', name: '电波邮箱', time: '昨天'),
+  _RecentItem(emoji: '🛒', name: '电波商城', time: '刚刚'),
 ];
 
 // ---------------------------------------------------------------------------
@@ -54,27 +54,27 @@ class ServicesPage extends StatelessWidget {
 
   VoidCallback? _onServiceTap(BuildContext context, _Service service) {
     switch (service.name) {
-      case '担保履约':
+      case '电波担保':
         return () => Navigator.of(context).push(
               CupertinoPageRoute(builder: (_) => const EscrowPage()),
             );
-      case '电邮找房':
+      case '电波找房':
         return () => Navigator.of(context).push(
               CupertinoPageRoute(builder: (_) => const HousingPage()),
             );
-      case '电邮婚恋':
+      case '电波婚恋':
         return () => Navigator.of(context).push(
               CupertinoPageRoute(builder: (_) => const DatingPage()),
             );
-      case '电邮招聘':
+      case '电波直聘':
         return () => Navigator.of(context).push(
               CupertinoPageRoute(builder: (_) => const JobsPage()),
             );
-      case '电子邮箱':
+      case '电波邮箱':
         return () => Navigator.of(context).push(
               CupertinoPageRoute(builder: (_) => const MailPage()),
             );
-      case '电邮商城':
+      case '电波商城':
         return () => Navigator.of(context).push(
               CupertinoPageRoute(builder: (_) => const MallPage()),
             );
