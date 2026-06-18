@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/cupertino.dart';
 import 'escrow_page.dart';
 import 'housing_page.dart';
+import 'dating_page.dart';
 
 // ---------------------------------------------------------------------------
 // Data Models
@@ -57,6 +58,10 @@ class ServicesPage extends StatelessWidget {
       case '电邮找房':
         return () => Navigator.of(context).push(
               CupertinoPageRoute(builder: (_) => const HousingPage()),
+            );
+      case '电邮婚恋':
+        return () => Navigator.of(context).push(
+              CupertinoPageRoute(builder: (_) => const DatingPage()),
             );
       default:
         return null; // falls back to "即将上线" dialog
