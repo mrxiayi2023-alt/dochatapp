@@ -893,6 +893,7 @@ class _PublishPostPageState extends State<_PublishPostPage> {
   final List<Color> _images = []; // 图片占位色块列表
   int _visibility = 0; // 0:公开, 1:好友可见, 2:仅自己可见
   bool _locationEnabled = false;
+  bool _isVideoTab = false; // 当前选中"视频"标签
   bool _hasVideo = false; // 是否已添加视频
   // TODO: 接入高德地图SDK获取真实定位，替换此模拟地址
   static const String _simulatedLocation = '扬州市·智谷科技综合体';
@@ -921,7 +922,7 @@ class _PublishPostPageState extends State<_PublishPostPage> {
   }
 
   void _addImage() {
-    if (_hasVideo || _images.length >= _maxImages) return;
+    if (_images.length >= _maxImages) return;
     setState(() {
       _images.add(_palette[_images.length % _palette.length]);
     });
@@ -932,10 +933,7 @@ class _PublishPostPageState extends State<_PublishPostPage> {
   }
 
   void _addVideo() {
-    if (_images.isNotEmpty) {
-      // 切换为视频模式时清空图片
-      _images.clear();
-    }
+    // 替换已有视频（只能保留1个）
     setState(() => _hasVideo = true);
   }
 
@@ -1099,16 +1097,11 @@ class _PublishPostPageState extends State<_PublishPostPage> {
           // ---- 媒体类型切换 ----
           _buildMediaToggle(),
           const SizedBox(height: 8),
-          // ---- 视频区 ----
-          if (_hasVideo)
-            _buildVideoCell()
-          else ...[
-            // ---- 图片区 ----
-            if (_images.isEmpty)
-              _buildEmptyImagePlaceholder()
-            else
-              _buildImageGrid(),
-          ],
+          // ---- 各标签内容 ----
+          if (_isVideoTab)
+            _hasVideo ? _buildVideoCell() : _buildAddVideoPlaceholder()
+          else
+            _images.isEmpty ? _buildEmptyImagePlaceholder() : _buildImageGrid(),
         ],
       ),
     );
@@ -1120,19 +1113,15 @@ class _PublishPostPageState extends State<_PublishPostPage> {
         _buildToggleChip(
           label: '图片',
           icon: CupertinoIcons.photo,
-          isActive: !_hasVideo,
-          onTap: () {
-            if (_hasVideo) setState(() => _hasVideo = false);
-          },
+          isActive: !_isVideoTab,
+          onTap: () => setState(() => _isVideoTab = false),
         ),
         const SizedBox(width: 8),
         _buildToggleChip(
           label: '视频',
           icon: CupertinoIcons.videocam,
-          isActive: _hasVideo,
-          onTap: () {
-            if (!_hasVideo) _addVideo();
-          },
+          isActive: _isVideoTab,
+          onTap: () => setState(() => _isVideoTab = true),
         ),
       ],
     );
@@ -1221,6 +1210,32 @@ class _PublishPostPageState extends State<_PublishPostPage> {
                     color: CupertinoColors.white,
                   ),
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddVideoPlaceholder() {
+    return GestureDetector(
+      onTap: _addVideo,
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFF2F2F7),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(CupertinoIcons.videocam, size: 36, color: CupertinoColors.systemGrey3),
+              SizedBox(height: 6),
+              Text(
+                '添加视频',
+                style: TextStyle(fontSize: 14, color: CupertinoColors.systemGrey),
               ),
             ],
           ),
