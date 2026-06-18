@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/cupertino.dart';
 import 'escrow_page.dart';
+import 'housing_page.dart';
 
 // ---------------------------------------------------------------------------
 // Data Models
@@ -47,6 +48,21 @@ const List<_RecentItem> _recentItems = [
 class ServicesPage extends StatelessWidget {
   const ServicesPage({super.key});
 
+  VoidCallback? _onServiceTap(BuildContext context, _Service service) {
+    switch (service.name) {
+      case '担保履约':
+        return () => Navigator.of(context).push(
+              CupertinoPageRoute(builder: (_) => const EscrowPage()),
+            );
+      case '电邮找房':
+        return () => Navigator.of(context).push(
+              CupertinoPageRoute(builder: (_) => const HousingPage()),
+            );
+      default:
+        return null; // falls back to "即将上线" dialog
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
@@ -71,11 +87,7 @@ class ServicesPage extends StatelessWidget {
                   final service = _services[index];
                   return _ServiceCard(
                     service: service,
-                    onTap: service.name == '担保履约'
-                        ? () => Navigator.of(context).push(
-                              CupertinoPageRoute(builder: (_) => const EscrowPage()),
-                            )
-                        : null,
+                    onTap: _onServiceTap(context, service),
                   );
                 },
                 childCount: _services.length,
