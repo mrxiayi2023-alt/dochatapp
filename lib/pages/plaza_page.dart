@@ -20,6 +20,7 @@ class _FeedItem {
   final double distance; // 距离(km)，0表示不显示
   final bool isSelf; // 自己发布的动态
   final String? location; // 位置信息（如"扬州市·智谷科技综合体"）
+  final bool hasVideo; // 是否包含视频
 
   _FeedItem({
     required this.name,
@@ -35,6 +36,7 @@ class _FeedItem {
     this.distance = 0,
     this.isSelf = false,
     this.location,
+    this.hasVideo = false,
   });
 }
 
@@ -175,6 +177,7 @@ class _PlazaPageState extends State<PlazaPage> {
       distance: e.distance,
       isSelf: e.isSelf,
       location: e.location,
+      hasVideo: e.hasVideo,
     )).toList();
   }
 
@@ -242,6 +245,12 @@ class _PlazaPageState extends State<PlazaPage> {
     });
   }
 
+  void _deletePost(int filteredIndex) {
+    final gi = _globalIndex(filteredIndex);
+    if (gi < 0 || gi >= _items.length) return;
+    setState(() => _items.removeAt(gi));
+  }
+
   void _showPublishSheet() async {
     final result = await Navigator.of(context).push<Map<String, dynamic>>(
       CupertinoPageRoute(
@@ -255,7 +264,8 @@ class _PlazaPageState extends State<PlazaPage> {
     final imageCount = result['image_count'] as int? ?? 0;
     final visibility = result['visibility'] as int? ?? 0;
     final location = result['location'] as String?;
-    if (content.isEmpty && imageCount == 0) return;
+    final hasVideo = result['has_video'] as bool? ?? false;
+    if (content.isEmpty && imageCount == 0 && !hasVideo) return;
 
     setState(() {
       // 插入到列表顶部；新动态同时出现在「推荐」(category=recommend) 和「动态」(isSelf=true)
@@ -283,6 +293,7 @@ class _PlazaPageState extends State<PlazaPage> {
         distance: 0,
         isSelf: true,
         location: location,
+        hasVideo: hasVideo,
       ));
     });
   }
@@ -317,6 +328,7 @@ class _PlazaPageState extends State<PlazaPage> {
                       onLike: () => _toggleLike(index),
                       onFollow: () => _toggleFollow(item.name),
                       onTap: () => debugPrint('查看动态详情：${item.name} - ${item.content}'),
+                      onDelete: item.isSelf ? () => _deletePost(index) : null,
                     );
                   },
                   childCount: _getFilteredItems().length,
@@ -435,6 +447,7 @@ class _FeedCard extends StatelessWidget {
   final VoidCallback onLike;
   final VoidCallback onFollow;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
 
   const _FeedCard({
     super.key,
@@ -444,6 +457,7 @@ class _FeedCard extends StatelessWidget {
     required this.onLike,
     required this.onFollow,
     required this.onTap,
+    this.onDelete,
   });
 
   @override
@@ -467,10 +481,13 @@ class _FeedCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header: avatar + name + time
-            _buildHeader(),
+            _buildHeader(context),
             // Content text
             if (item.content.isNotEmpty)
               _buildContent(),
+            // Video placeholder
+            if (item.hasVideo)
+              _buildVideoPlaceholder(),
             // Image grid
             if (item.imageCount > 0)
               _buildImageGrid(),
@@ -482,10 +499,11 @@ class _FeedCard extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Avatar
           Container(
@@ -593,6 +611,40 @@ class _FeedCard extends StatelessWidget {
               ],
             ),
           ),
+          // "..." button for self-published posts
+          if (item.isSelf && onDelete != null)
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(28, 28),
+              pressedOpacity: 0.5,
+              onPressed: () {
+                showCupertinoModalPopup(
+                  context: context,
+                  builder: (ctx) => CupertinoActionSheet(
+                    actions: [
+                      CupertinoActionSheetAction(
+                        isDestructiveAction: true,
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          onDelete?.call();
+                        },
+                        child: const Text('删除'),
+                      ),
+                    ],
+                    cancelButton: CupertinoActionSheetAction(
+                      isDefaultAction: true,
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      child: const Text('取消'),
+                    ),
+                  ),
+                );
+              },
+              child: const Icon(
+                CupertinoIcons.ellipsis,
+                size: 20,
+                color: CupertinoColors.systemGrey,
+              ),
+            ),
         ],
       ),
     );
@@ -623,6 +675,35 @@ class _FeedCard extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: _buildGridContent(count),
+      ),
+    );
+  }
+
+  Widget _buildVideoPlaceholder() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Container(
+            color: CupertinoColors.systemPurple.withValues(alpha: 0.1),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(CupertinoIcons.videocam_fill, size: 36, color: CupertinoColors.systemPurple),
+                const SizedBox(height: 6),
+                Text(
+                  '动态',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: CupertinoColors.systemPurple.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -812,6 +893,7 @@ class _PublishPostPageState extends State<_PublishPostPage> {
   final List<Color> _images = []; // 图片占位色块列表
   int _visibility = 0; // 0:公开, 1:好友可见, 2:仅自己可见
   bool _locationEnabled = false;
+  bool _hasVideo = false; // 是否已添加视频
   // TODO: 接入高德地图SDK获取真实定位，替换此模拟地址
   static const String _simulatedLocation = '扬州市·智谷科技综合体';
 
@@ -830,7 +912,7 @@ class _PublishPostPageState extends State<_PublishPostPage> {
   static const int _maxImages = 9;
 
   bool get _canPublish =>
-      _textController.text.trim().isNotEmpty || _images.isNotEmpty;
+      _textController.text.trim().isNotEmpty || _images.isNotEmpty || _hasVideo;
 
   @override
   void dispose() {
@@ -839,7 +921,7 @@ class _PublishPostPageState extends State<_PublishPostPage> {
   }
 
   void _addImage() {
-    if (_images.length >= _maxImages) return;
+    if (_hasVideo || _images.length >= _maxImages) return;
     setState(() {
       _images.add(_palette[_images.length % _palette.length]);
     });
@@ -849,6 +931,18 @@ class _PublishPostPageState extends State<_PublishPostPage> {
     setState(() => _images.removeAt(index));
   }
 
+  void _addVideo() {
+    if (_images.isNotEmpty) {
+      // 切换为视频模式时清空图片
+      _images.clear();
+    }
+    setState(() => _hasVideo = true);
+  }
+
+  void _removeVideo() {
+    setState(() => _hasVideo = false);
+  }
+
   void _publish() {
     if (!_canPublish) return;
     Navigator.of(context).pop({
@@ -856,6 +950,7 @@ class _PublishPostPageState extends State<_PublishPostPage> {
       'image_count': _images.length,
       'visibility': _visibility,
       if (_locationEnabled) 'location': _simulatedLocation,
+      if (_hasVideo) 'has_video': true,
     });
   }
 
@@ -897,36 +992,40 @@ class _PublishPostPageState extends State<_PublishPostPage> {
       child: SafeArea(
         child: GestureDetector(
           onTap: () => FocusScope.of(context).unfocus(),
-          child: Column(
-            children: [
-              // ---- 文字输入区 ----
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: CupertinoTextField(
-                    controller: _textController,
-                    placeholder: '分享你的生活...',
-                    placeholderStyle: const TextStyle(
-                      color: CupertinoColors.systemGrey3,
-                      fontSize: 17,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ---- 文字输入区 ----
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 200),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: CupertinoTextField(
+                      controller: _textController,
+                      placeholder: '分享你的生活...',
+                      placeholderStyle: const TextStyle(
+                        color: CupertinoColors.systemGrey3,
+                        fontSize: 17,
+                      ),
+                      style: const TextStyle(fontSize: 17),
+                      maxLines: null,
+                      expands: true,
+                      textAlignVertical: TextAlignVertical.top,
+                      decoration: const BoxDecoration(),
+                      onChanged: (_) => setState(() {}),
                     ),
-                    style: const TextStyle(fontSize: 17),
-                    maxLines: null,
-                    expands: true,
-                    textAlignVertical: TextAlignVertical.top,
-                    decoration: const BoxDecoration(),
-                    onChanged: (_) => setState(() {}),
                   ),
                 ),
-              ),
-              // ---- 位置 ----
-              _buildLocationRow(),
-              // ---- 图片选择区 ----
-              _buildImageSection(),
-              // ---- 可见范围选择 ----
-              _buildVisibilitySection(),
-              const SizedBox(height: 8),
-            ],
+                // ---- 位置 ----
+                _buildLocationRow(),
+                // ---- 图片/视频选择区 ----
+                _buildMediaSection(),
+                // ---- 可见范围选择 ----
+                _buildVisibilitySection(),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         ),
       ),
@@ -992,62 +1091,194 @@ class _PublishPostPageState extends State<_PublishPostPage> {
     );
   }
 
-  Widget _buildImageSection() {
-    final count = _images.length;
-    final showAdd = count < _maxImages;
-    final totalCells = count + (showAdd ? 1 : 0);
+  Widget _buildMediaSection() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Column(
+        children: [
+          // ---- 媒体类型切换 ----
+          _buildMediaToggle(),
+          const SizedBox(height: 8),
+          // ---- 视频区 ----
+          if (_hasVideo)
+            _buildVideoCell()
+          else ...[
+            // ---- 图片区 ----
+            if (_images.isEmpty)
+              _buildEmptyImagePlaceholder()
+            else
+              _buildImageGrid(),
+          ],
+        ],
+      ),
+    );
+  }
 
-    if (totalCells == 0) {
-      return GestureDetector(
-        onTap: _addImage,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          height: 100,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF2F2F7),
-            borderRadius: BorderRadius.circular(10),
+  Widget _buildMediaToggle() {
+    return Row(
+      children: [
+        _buildToggleChip(
+          label: '图片',
+          icon: CupertinoIcons.photo,
+          isActive: !_hasVideo,
+          onTap: () {
+            if (_hasVideo) setState(() => _hasVideo = false);
+          },
+        ),
+        const SizedBox(width: 8),
+        _buildToggleChip(
+          label: '视频',
+          icon: CupertinoIcons.videocam,
+          isActive: _hasVideo,
+          onTap: () {
+            if (!_hasVideo) _addVideo();
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildToggleChip({
+    required String label,
+    required IconData icon,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isActive ? CupertinoColors.activeBlue.withValues(alpha: 0.1) : const Color(0xFFF2F2F7),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isActive ? CupertinoColors.activeBlue : CupertinoColors.systemGrey4,
+            width: 1,
           ),
-          child: const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: isActive ? CupertinoColors.activeBlue : CupertinoColors.systemGrey),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: isActive ? CupertinoColors.activeBlue : CupertinoColors.systemGrey,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVideoCell() {
+    return GestureDetector(
+      onTap: _removeVideo,
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Container(
+          decoration: BoxDecoration(
+            color: CupertinoColors.systemPurple.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: CupertinoColors.systemPurple.withValues(alpha: 0.4), width: 1),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              Icon(CupertinoIcons.photo_on_rectangle, size: 32, color: CupertinoColors.systemGrey3),
-              SizedBox(height: 6),
-              Text(
-                '添加图片',
-                style: TextStyle(fontSize: 14, color: CupertinoColors.systemGrey),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(CupertinoIcons.videocam_fill, size: 36, color: CupertinoColors.systemPurple),
+                  const SizedBox(height: 6),
+                  const Text(
+                    '视频已添加',
+                    style: TextStyle(fontSize: 14, color: CupertinoColors.systemPurple),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '点击移除',
+                    style: TextStyle(fontSize: 12, color: CupertinoColors.systemPurple.withValues(alpha: 0.7)),
+                  ),
+                ],
+              ),
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: const BoxDecoration(
+                    color: CupertinoColors.destructiveRed,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    CupertinoIcons.xmark,
+                    size: 13,
+                    color: CupertinoColors.white,
+                  ),
+                ),
               ),
             ],
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
 
+  Widget _buildEmptyImagePlaceholder() {
+    return GestureDetector(
+      onTap: _addImage,
+      child: Container(
+        height: 90,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF2F2F7),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(CupertinoIcons.photo_on_rectangle, size: 28, color: CupertinoColors.systemGrey3),
+            SizedBox(height: 4),
+            Text(
+              '添加图片',
+              style: TextStyle(fontSize: 14, color: CupertinoColors.systemGrey),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageGrid() {
+    final count = _images.length;
+    final showAdd = count < _maxImages;
+    final totalCells = count + (showAdd ? 1 : 0);
     final colsPerRow = 3;
     final rows = (totalCells + colsPerRow - 1) ~/ colsPerRow;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Column(
-        children: List.generate(rows, (row) {
-          final cells = <Widget>[];
-          for (int col = 0; col < colsPerRow; col++) {
-            final index = row * colsPerRow + col;
-            if (index < count) {
-              // 已添加的图片占位
-              cells.add(_buildImageCell(index));
-            } else if (index == count && showAdd) {
-              // 添加按钮
-              cells.add(_buildAddCell());
-            }
-            if (col < colsPerRow - 1 && index + 1 < totalCells) {
-              cells.add(const SizedBox(width: 8));
-            }
+
+    return Column(
+      children: List.generate(rows, (row) {
+        final cells = <Widget>[];
+        for (int col = 0; col < colsPerRow; col++) {
+          final index = row * colsPerRow + col;
+          if (index < count) {
+            cells.add(_buildImageCell(index));
+          } else if (index == count && showAdd) {
+            cells.add(_buildAddCell());
           }
-          return Padding(
-            padding: row > 0 ? const EdgeInsets.only(top: 8) : EdgeInsets.zero,
-            child: Row(children: cells),
-          );
-        }),
-      ),
+          if (col < colsPerRow - 1 && index + 1 < totalCells) {
+            cells.add(const SizedBox(width: 8));
+          }
+        }
+        return Padding(
+          padding: row > 0 ? const EdgeInsets.only(top: 8) : EdgeInsets.zero,
+          child: Row(children: cells),
+        );
+      }),
     );
   }
 
@@ -1067,21 +1298,20 @@ class _PublishPostPageState extends State<_PublishPostPage> {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                Icon(CupertinoIcons.photo, size: 28, color: color.withValues(alpha: 0.6)),
-                // 删除角标
+                Icon(CupertinoIcons.photo, size: 24, color: color.withValues(alpha: 0.6)),
                 Positioned(
-                  right: 4,
-                  top: 4,
+                  right: 3,
+                  top: 3,
                   child: Container(
-                    width: 20,
-                    height: 20,
+                    width: 18,
+                    height: 18,
                     decoration: const BoxDecoration(
                       color: CupertinoColors.destructiveRed,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
                       CupertinoIcons.xmark,
-                      size: 12,
+                      size: 11,
                       color: CupertinoColors.white,
                     ),
                   ),
@@ -1112,11 +1342,11 @@ class _PublishPostPageState extends State<_PublishPostPage> {
             child: const Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(CupertinoIcons.photo, size: 24, color: CupertinoColors.systemGrey3),
-                SizedBox(height: 4),
+                Icon(CupertinoIcons.photo, size: 22, color: CupertinoColors.systemGrey3),
+                SizedBox(height: 3),
                 Text(
                   '添加',
-                  style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
+                  style: TextStyle(fontSize: 11, color: CupertinoColors.systemGrey),
                 ),
               ],
             ),
