@@ -283,7 +283,25 @@ class _FriendsPageState extends State<FriendsPage> {
   }
 
   void _openFriendRequests() async {
-    final result = await Navigator.of(context).push<Map<String, String>>(
+    // 接受好友申请后的处理逻辑（通过回调触发，不跳转页面）
+    void onAccepted(String nickname, String phone, String userId) {
+      if (nickname.isEmpty) return;
+      _addDemoFriend(nickname, phone, userId);
+
+      // 同时向聊天列表添加一条新会话
+      final chat = ChatModel(
+        name: nickname,
+        lastMessage: '你们已成为好友，开始聊天吧',
+        time: '',
+        unreadCount: 1,
+        initial: nickname.isNotEmpty ? nickname.characters.first : '?',
+        avatarColor: _nameToColor(nickname),
+        targetUserId: userId,
+      );
+      ChatPage.addFriendConversation(chat);
+    }
+
+    await Navigator.of(context).push(
       CupertinoPageRoute(
         builder: (_) => FriendRequestsPage(
           // 每次接受/拒绝后实时更新角标数字
@@ -293,38 +311,16 @@ class _FriendsPageState extends State<FriendsPage> {
               setState(() => _setPendingCount(remaining));
             }
           },
+          // 接受申请后通过回调通知，不跳转
+          onFriendAccepted: onAccepted,
         ),
       ),
     );
 
-    // 1) 先把接受的好友加入本地额外列表（无论 API 模式还是 demo 模式）
-    if (result != null) {
-      final nickname = result[kResultAcceptedNickname] ?? '';
-      final phone = result[kResultAcceptedPhone] ?? '';
-      final userId = result[kResultAcceptedUserId] ?? '';
-      if (nickname.isNotEmpty) {
-        _addDemoFriend(nickname, phone, userId);
-
-        // 同时向聊天列表添加一条新会话（带有未读标记）
-        final chat = ChatModel(
-          name: nickname,
-          lastMessage: '你们已成为好友，开始聊天吧',
-          time: '',
-          unreadCount: 1,
-          initial: nickname.isNotEmpty ? nickname.characters.first : '?',
-          avatarColor: _nameToColor(nickname),
-          targetUserId: userId,
-        );
-        ChatPage.addFriendConversation(chat);
-      }
-    }
-
-    // 2) 刷新角标（demo 模式下读取本地 _demoPendingCount）
+    // 返回后刷新角标和好友列表
     await _loadPendingCount();
-
-    // 3) 从 API 重新加载好友列表
-    //    _loadFriends 会保留 _extraDemoFriends 中的好友，
-    //    所以即使 API 还没返回刚接受的好友，他也会正常显示在列表中
+    // _loadFriends 会保留 _extraDemoFriends 中的好友，
+    // 所以即使 API 还没返回刚接受的好友，他也会正常显示在列表中
     await _loadFriends();
   }
 
