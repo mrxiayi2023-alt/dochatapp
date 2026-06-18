@@ -78,6 +78,11 @@ class _FriendsPageState extends State<FriendsPage> {
         final exists = apiFriends.any((f) => f['user_id'] == extra['user_id']);
         if (!exists) apiFriends.add(Map<String, dynamic>.from(extra));
       }
+      // 追加演示8人（去重，排在真实好友下方）
+      for (final demo in _kDemoExtras) {
+        final exists = apiFriends.any((f) => f['user_id'] == demo['user_id']);
+        if (!exists) apiFriends.add(Map<String, dynamic>.from(demo));
+      }
       setState(() {
         _loading = false;
         _friends = apiFriends;
@@ -101,8 +106,8 @@ class _FriendsPageState extends State<FriendsPage> {
     }
   }
 
-  /// demo 基础好友列表（不会被重置）
-  static const List<Map<String, String>> _kDemoFriends = [
+  /// 演示好友（仅8人，追加到API真实好友下方）
+  static const List<Map<String, String>> _kDemoExtras = [
     {'user_id': '1', 'nickname': '张三', 'phone': '13800000001'},
     {'user_id': '2', 'nickname': '李四', 'phone': '13800000002'},
     {'user_id': '3', 'nickname': '王五', 'phone': '13800000003'},
@@ -111,6 +116,11 @@ class _FriendsPageState extends State<FriendsPage> {
     {'user_id': '6', 'nickname': '孙八', 'phone': '13800000006'},
     {'user_id': '7', 'nickname': '周九', 'phone': '13800000007'},
     {'user_id': '8', 'nickname': '吴十', 'phone': '13800000008'},
+  ];
+
+  /// demo 完整好友列表（API失败时使用，包含测试账号）
+  static const List<Map<String, String>> _kDemoFriends = [
+    ..._kDemoExtras,
     {'user_id': '18955091111', 'nickname': '测试账号A', 'phone': '18955091111'},
     {'user_id': '17612025678', 'nickname': '测试账号B', 'phone': '17612025678'},
   ];

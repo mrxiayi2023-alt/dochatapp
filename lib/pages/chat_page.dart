@@ -46,6 +46,9 @@ class ChatPage extends ConsumerStatefulWidget {
   /// 触发聊天列表刷新的通知器
   static final ValueNotifier<int> friendConversationNotifier = ValueNotifier<int>(0);
 
+  /// 当前正在查看的聊天对象的用户ID（用于跳过该会话的未读角标更新）
+  static String? currentOpenChatUserId;
+
   /// 外部（friends_page）调用此方法添加新好友会话
   static void addFriendConversation(ChatModel chat) {
     // 避免重复添加
@@ -95,6 +98,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (msg.fromId == myId) return;
 
     final fromId = msg.fromId;
+    // 如果用户正在查看该会话，不增加未读角标
+    if (fromId == ChatPage.currentOpenChatUserId) return;
+
     setState(() {
       final index = _chats.indexWhere((c) => c.targetUserId == fromId);
       if (index != -1) {
@@ -183,10 +189,39 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           targetUserId: otherId,
         ));
       }
-      // 合并 pending 好友会话（去重）
+      // 检查好友列表，确保所有好友都在聊天列表中（自动创建缺失的会话）
+      try {
+        final friends = await ApiService.instance.getFriendList();
+        for (final f in friends) {
+          final fMap = f as Map<String, dynamic>;
+          final fid = fMap['user_id'] as String? ?? '';
+          final fname = fMap['nickname'] as String? ?? '';
+          if (fid.isEmpty) continue;
+          final exists = apiChats.any((c) => c.targetUserId == fid);
+          if (!exists) {
+            apiChats.insert(0, ChatModel(
+              name: fname,
+              lastMessage: '',
+              time: '',
+              unreadCount: 0,
+              initial: fname.isNotEmpty ? fname.characters.first : '?',
+              avatarColor: _colorFromName(fname),
+              targetUserId: fid,
+            ));
+          }
+        }
+      } catch (_) {
+        // 好友列表加载失败不影响主流程
+      }
+      // 合并 pending 好友会话（去重，置顶）
       for (final fc in ChatPage._pendingFriendConversations) {
         final exists = apiChats.any((c) => c.targetUserId == fc.targetUserId);
         if (!exists) apiChats.insert(0, fc);
+      }
+      // 追加演示6条会话（去重，排在真实会话下方）
+      for (final demo in _demoConversations()) {
+        final exists = apiChats.any((c) => c.name == demo.name && c.isGroup == demo.isGroup);
+        if (!exists) apiChats.add(demo);
       }
       setState(() {
         _loading = false;
@@ -197,77 +232,51 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
+  /// 演示会话6条（API成功时追加到列表下方，纯UI展示）
+  static List<ChatModel> _demoConversations() => const [
+    ChatModel(
+      name: '张三', lastMessage: '周末一起去杭州西湖旅游吧？', time: '14:30',
+      unreadCount: 3, initial: '张', avatarColor: CupertinoColors.systemBlue,
+    ),
+    ChatModel(
+      name: '项目讨论群', lastMessage: '李四：[文件] 设计稿v3.pdf', time: '09:15',
+      isGroup: true, initial: '项', avatarColor: CupertinoColors.systemGreen,
+      members: ['李四', '王五', '赵六', '钱七', '自己'],
+    ),
+    ChatModel(
+      name: '王五', lastMessage: '[图片]', time: '昨天',
+      unreadCount: 1, initial: '王', avatarColor: CupertinoColors.systemOrange,
+    ),
+    ChatModel(
+      name: '赵六', lastMessage: '好的，明天见', time: '昨天',
+      initial: '赵', avatarColor: CupertinoColors.systemPurple,
+    ),
+    ChatModel(
+      name: '设计小组', lastMessage: '钱七：[视频]', time: '周二',
+      unreadCount: 5, isGroup: true, initial: '设', avatarColor: CupertinoColors.systemPink,
+      members: ['钱七', '孙八', '周九', '吴十', '自己'],
+    ),
+    ChatModel(
+      name: '孙八', lastMessage: '谢谢，收到了', time: '周一',
+      initial: '孙', avatarColor: CupertinoColors.systemRed,
+    ),
+  ];
+
   /// 返回演示数据列表（不 setState），测试账号置顶
   List<ChatModel> _fallbackToDemoList() {
     final chats = <ChatModel>[
       // 测试账号（置顶，用于实时消息验证）
       ChatModel(
-        name: '测试账号A',
-        lastMessage: '',
-        time: '',
-        unreadCount: 0,
-        initial: 'A',
-        avatarColor: CupertinoColors.systemIndigo,
+        name: '测试账号A', lastMessage: '', time: '', unreadCount: 0,
+        initial: 'A', avatarColor: CupertinoColors.systemIndigo,
         targetUserId: '18955091111',
       ),
       ChatModel(
-        name: '测试账号B',
-        lastMessage: '',
-        time: '',
-        unreadCount: 0,
-        initial: 'B',
-        avatarColor: CupertinoColors.systemTeal,
+        name: '测试账号B', lastMessage: '', time: '', unreadCount: 0,
+        initial: 'B', avatarColor: CupertinoColors.systemTeal,
         targetUserId: '17612025678',
       ),
-      ChatModel(
-        name: '张三',
-        lastMessage: '周末一起去杭州西湖旅游吧？',
-        time: '14:30',
-        unreadCount: 3,
-        initial: '张',
-        avatarColor: CupertinoColors.systemBlue,
-      ),
-      ChatModel(
-        name: '项目讨论群',
-        lastMessage: '李四：[文件] 设计稿v3.pdf',
-        time: '09:15',
-        isGroup: true,
-        initial: '项',
-        avatarColor: CupertinoColors.systemGreen,
-        members: const ['李四', '王五', '赵六', '钱七', '自己'],
-      ),
-      ChatModel(
-        name: '王五',
-        lastMessage: '[图片]',
-        time: '昨天',
-        unreadCount: 1,
-        initial: '王',
-        avatarColor: CupertinoColors.systemOrange,
-      ),
-      ChatModel(
-        name: '赵六',
-        lastMessage: '好的，明天见',
-        time: '昨天',
-        initial: '赵',
-        avatarColor: CupertinoColors.systemPurple,
-      ),
-      ChatModel(
-        name: '设计小组',
-        lastMessage: '钱七：[视频]',
-        time: '周二',
-        unreadCount: 5,
-        isGroup: true,
-        initial: '设',
-        avatarColor: CupertinoColors.systemPink,
-        members: const ['钱七', '孙八', '周九', '吴十', '自己'],
-      ),
-      ChatModel(
-        name: '孙八',
-        lastMessage: '谢谢，收到了',
-        time: '周一',
-        initial: '孙',
-        avatarColor: CupertinoColors.systemRed,
-      ),
+      ..._demoConversations(),
     ];
 
     // 追加 pending 好友会话（去重）
@@ -545,10 +554,12 @@ class _ChatListItemState extends State<_ChatListItem> {
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) {
         setState(() => _pressed = false);
-// debugPrint('打开聊天：${chat.name}');  // FIXED: removed print statement
 
         // 先清除未读角标（乐观更新）
         widget.onChatOpened?.call(chat);
+
+        // 标记当前打开的会话，避免 WebSocket 消息重复增加角标
+        ChatPage.currentOpenChatUserId = chat.targetUserId;
 
         // 再导航进入聊天页面（传递输入状态回调）
         Navigator.of(context).push(
@@ -562,7 +573,10 @@ class _ChatListItemState extends State<_ChatListItem> {
                         widget.onTypingChanged?.call(chat.name, isTyping),
                   ),
           ),
-        );
+        ).then((_) {
+          // 从聊天页面返回后清除当前会话标记
+          ChatPage.currentOpenChatUserId = null;
+        });
       },
       onTapCancel: () => setState(() => _pressed = false),
       child: Dismissible(

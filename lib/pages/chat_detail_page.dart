@@ -194,7 +194,7 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
     }
 
     // 确保红点至少显示 2.5 秒，用户能看到
-    await Future.delayed(const Duration(milliseconds: 2500));
+    await Future.delayed(const Duration(milliseconds: 1500));
 
     // 2) 本地状态标记 — 无论 API 是否调用，都必须清除 isNew 标记
     if (!mounted) return;
@@ -802,7 +802,7 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
       isMe: false,
       time: wsMsg.time,
       fromId: wsMsg.fromId,
-      isNew: true,
+      isNew: false, // 实时收到的消息不显示红点，只有历史未读消息才显示
       autoDelete: burnEnabled,
       deleteAfter: burnDuration,
     );
