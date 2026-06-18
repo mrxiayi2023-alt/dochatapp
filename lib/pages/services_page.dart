@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/cupertino.dart';
+import 'escrow_page.dart';
 
 // ---------------------------------------------------------------------------
 // Data Models
@@ -66,7 +67,17 @@ class ServicesPage extends StatelessWidget {
                 childAspectRatio: 1.0,
               ),
               delegate: SliverChildBuilderDelegate(
-                (context, index) => _ServiceCard(service: _services[index]),
+                (context, index) {
+                  final service = _services[index];
+                  return _ServiceCard(
+                    service: service,
+                    onTap: service.name == '担保履约'
+                        ? () => Navigator.of(context).push(
+                              CupertinoPageRoute(builder: (_) => const EscrowPage()),
+                            )
+                        : null,
+                  );
+                },
                 childCount: _services.length,
               ),
             ),
@@ -155,8 +166,9 @@ class ServicesPage extends StatelessWidget {
 
 class _ServiceCard extends StatelessWidget {
   final _Service service;
+  final VoidCallback? onTap;
 
-  const _ServiceCard({required this.service});
+  const _ServiceCard({required this.service, this.onTap});
 
   void _showComingSoon(BuildContext context) {
     showCupertinoDialog(
@@ -178,7 +190,7 @@ class _ServiceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => _showComingSoon(context),
+      onTap: onTap ?? (() => _showComingSoon(context)),
       child: Container(
         decoration: BoxDecoration(
           color: CupertinoColors.white,
