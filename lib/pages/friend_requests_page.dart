@@ -38,6 +38,10 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
   // 数据加载：先试 API，失败后用 demo
   // -----------------------------------------------------------------------
 
+  /// 当前待处理（pending）的申请数
+  int get _pendingCount =>
+      _requests.where((r) => r['status'] == 'pending').length;
+
   Future<void> _loadRequests() async {
     try {
       final data = await ApiService.instance.getFriendRequests();
@@ -55,12 +59,27 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
 
   void _fallbackToDemo() {
     if (!mounted) return;
+    final now = DateTime.now();
     setState(() {
       _loading = false;
       _isDemo = true;
       _requests = [
-        {'id': 'demo_1', 'from_id': 'demo_user_6', 'from_nickname': '赵六', 'from_phone': '13800000006', 'status': 'pending', 'created_at': '2026-05-28 14:30'},
-        {'id': 'demo_2', 'from_id': 'demo_user_7', 'from_nickname': '钱七', 'from_phone': '13800000007', 'status': 'pending', 'created_at': '2026-05-27 09:15'},
+        {
+          'id': 'demo_1',
+          'from_id': 'demo_user_6',
+          'from_nickname': '赵六',
+          'from_phone': '13800000006',
+          'status': 'pending',
+          'created_at': now.subtract(const Duration(hours: 2)).toIso8601String(),
+        },
+        {
+          'id': 'demo_2',
+          'from_id': 'demo_user_7',
+          'from_nickname': '钱七',
+          'from_phone': '13800000007',
+          'status': 'pending',
+          'created_at': now.subtract(const Duration(hours: 36)).toIso8601String(),
+        },
       ];
     });
   }
@@ -70,7 +89,7 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
   // -----------------------------------------------------------------------
 
   Future<void> _acceptRequest(String requestId) async {
-    // 获取被接受者的信息（在移除前缓存）
+    // 获取被接受者的信息
     final req = _requests.firstWhere(
       (r) => r['id'] == requestId,
       orElse: () => <String, dynamic>{},
@@ -80,27 +99,32 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
     final userId = req['from_id'] as String? ?? '';
 
     if (!_isDemo) {
-      // 真实数据模式：调用后端 API
       try {
         await ApiService.instance.acceptFriendRequest(requestId);
       } catch (e) {
-        // API 失败时仍从本地列表移除，但提示用户
         if (mounted) _showToast('接受失败：${e.toString().replaceFirst("Exception: ", "")}');
         return;
       }
     }
 
-    // 从本地列表移除
+    // 更新状态为已接受，不删除记录
     if (mounted) {
-      setState(() => _requests.removeWhere((r) => r['id'] == requestId));
-      // 立即通知上一页剩余未处理申请数
-      widget.onCountChanged?.call(_requests.length);
-      _showToast('已接受好友申请');
-      // 将接受结果返回给上一页（包含用户 ID，便于 chat_page 创建新会话）
-      Navigator.of(context).pop({
-        kResultAcceptedNickname: nickname,
-        kResultAcceptedPhone: phone,
-        kResultAcceptedUserId: userId,
+      setState(() {
+        final idx = _requests.indexWhere((r) => r['id'] == requestId);
+        if (idx != -1) _requests[idx]['status'] = 'accepted';
+      });
+      // 角标仅统计待处理的申请
+      widget.onCountChanged?.call(_pendingCount);
+
+      // 短暂延迟让用户看到"已接受"状态，再将结果返回上一页
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) {
+          Navigator.of(context).pop({
+            kResultAcceptedNickname: nickname,
+            kResultAcceptedPhone: phone,
+            kResultAcceptedUserId: userId,
+          });
+        }
       });
     }
   }
@@ -117,10 +141,27 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
         // fall through
       }
     }
+    // 更新状态为已拒绝，不删除记录
+    if (mounted) {
+      setState(() {
+        final idx = _requests.indexWhere((r) => r['id'] == requestId);
+        if (idx != -1) _requests[idx]['status'] = 'rejected';
+      });
+      // 角标仅统计待处理的申请
+      widget.onCountChanged?.call(_pendingCount);
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // 左滑删除
+  // -----------------------------------------------------------------------
+
+  /// 左滑删除申请（仅本地移除，不调 API）
+  Future<void> _deleteRequest(String requestId) async {
     if (mounted) {
       setState(() => _requests.removeWhere((r) => r['id'] == requestId));
-      // 立即通知上一页剩余未处理申请数
-      widget.onCountChanged?.call(_requests.length);
+      // 角标仅统计待处理的申请
+      widget.onCountChanged?.call(_pendingCount);
     }
   }
 
@@ -173,8 +214,11 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
                           nickname: req['from_nickname'] as String? ?? '',
                           phone: req['from_phone'] as String? ?? '',
                           requestId: req['id'] as String? ?? '',
+                          createdAt: req['created_at'] as String? ?? '',
+                          status: req['status'] as String? ?? 'pending',
                           onAccept: () => _acceptRequest(req['id'] as String),
                           onReject: () => _rejectRequest(req['id'] as String),
+                          onDelete: () => _deleteRequest(req['id'] as String),
                           isLast: index == _requests.length - 1,
                         );
                       },
@@ -195,16 +239,22 @@ class _RequestItem extends StatelessWidget {
   final String nickname;
   final String phone;
   final String requestId;
+  final String createdAt;
+  final String status;
   final VoidCallback onAccept;
   final VoidCallback onReject;
+  final VoidCallback? onDelete;
   final bool isLast;
 
   const _RequestItem({
     required this.nickname,
     required this.phone,
     required this.requestId,
+    this.createdAt = '',
+    this.status = 'pending',
     required this.onAccept,
     required this.onReject,
+    this.onDelete,
     this.isLast = false,
   });
 
@@ -223,104 +273,170 @@ class _RequestItem extends StatelessWidget {
     return colors[hash.abs() % colors.length];
   }
 
+  /// 格式化相对时间
+  String _formatRelativeTime(String? isoTime) {
+    if (isoTime == null || isoTime.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(isoTime);
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      if (diff.inMinutes < 1) return '刚刚';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}分钟前';
+      if (diff.inHours < 24) return '${diff.inHours}小时前';
+      if (diff.inHours < 48) return '昨天';
+      return '${diff.inDays}天前';
+    } catch (_) {
+      return '';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final initial = nickname.isNotEmpty ? nickname.characters.first : '?';
-    return Container(
-      height: 72,
-      color: CupertinoColors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                // Avatar
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: _colorFromName(nickname),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    initial,
-                    style: const TextStyle(
-                      color: CupertinoColors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Name + phone
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        nickname,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        phone,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: CupertinoColors.systemGrey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Accept button
-                CupertinoButton(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  borderRadius: const BorderRadius.all(Radius.circular(16)),
-                  color: CupertinoColors.activeBlue,
-                  pressedOpacity: 0.7,
-                  onPressed: onAccept,
-                  child: const Text(
-                    '接受',
-                    style: TextStyle(
-                      color: CupertinoColors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                // Reject button
-                CupertinoButton(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  borderRadius: const BorderRadius.all(Radius.circular(16)),
-                  color: CupertinoColors.systemGrey5,
-                  pressedOpacity: 0.7,
-                  onPressed: onReject,
-                  child: Text(
-                    '拒绝',
-                    style: TextStyle(
-                      color: CupertinoColors.black,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+    final timeStr = _formatRelativeTime(createdAt);
+
+    return Dismissible(
+      key: ValueKey('request_$requestId'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        color: CupertinoColors.destructiveRed,
+        child: const Text(
+          '删除',
+          style: TextStyle(
+            color: CupertinoColors.white,
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
           ),
-          if (!isLast)
-            Container(
-              height: 0.5,
-              margin: const EdgeInsets.only(left: 72),
-              color: CupertinoColors.systemGrey5,
+        ),
+      ),
+      onDismissed: (_) => onDelete?.call(),
+      child: Container(
+        height: 72,
+        color: CupertinoColors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  // Avatar
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: _colorFromName(nickname),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      initial,
+                      style: const TextStyle(
+                        color: CupertinoColors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Name + time
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          nickname,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (timeStr.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            timeStr,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: CupertinoColors.systemGrey,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (status == 'accepted')
+                    // 已接受 — 灰色文字
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      child: Text(
+                        '已接受',
+                        style: TextStyle(
+                          color: CupertinoColors.systemGrey,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    )
+                  else if (status == 'rejected')
+                    // 已拒绝 — 灰色文字
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      child: Text(
+                        '已拒绝',
+                        style: TextStyle(
+                          color: CupertinoColors.systemGrey,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    )
+                  else ...[
+                    // 待处理 — 蓝色接受按钮 + 灰色拒绝按钮
+                    CupertinoButton(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      borderRadius: const BorderRadius.all(Radius.circular(16)),
+                      color: CupertinoColors.activeBlue,
+                      pressedOpacity: 0.7,
+                      onPressed: onAccept,
+                      child: const Text(
+                        '接受',
+                        style: TextStyle(
+                          color: CupertinoColors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    CupertinoButton(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      borderRadius: const BorderRadius.all(Radius.circular(16)),
+                      color: CupertinoColors.systemGrey5,
+                      pressedOpacity: 0.7,
+                      onPressed: onReject,
+                      child: const Text(
+                        '拒绝',
+                        style: TextStyle(
+                          color: CupertinoColors.black,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-        ],
+            if (!isLast)
+              Container(
+                height: 0.5,
+                margin: const EdgeInsets.only(left: 72),
+                color: CupertinoColors.systemGrey5,
+              ),
+          ],
+        ),
       ),
     );
   }
