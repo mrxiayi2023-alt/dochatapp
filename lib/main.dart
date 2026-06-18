@@ -130,13 +130,44 @@ class MainScreen extends ConsumerStatefulWidget {
 class _MainScreenState extends ConsumerState<MainScreen> {
   bool _wsConnected = false;
   String? _activeIncomingCallId;
+  int _friendBadge = 0; // 好友申请角标数
 
   @override
   /// 初始化状态，检查认证状态
   void initState() {
     super.initState();
-    // 首帧后尝试连接 WebSocket（使用 ref.read 是允许的）
-    WidgetsBinding.instance.addPostFrameCallback((_) => _connectCallWs());
+    // 监听全局待处理申请数变化
+    FriendsPage.pendingRequestNotifier.addListener(_onFriendBadgeChanged);
+    // 首帧后尝试连接 WebSocket 并预加载角标
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _connectCallWs();
+      _initFriendBadge();
+    });
+  }
+
+  /// 全局待处理申请数变化时同步角标
+  void _onFriendBadgeChanged() {
+    if (mounted) {
+      setState(() => _friendBadge = FriendsPage.pendingRequestNotifier.value);
+    }
+  }
+
+  /// 预加载好友申请角标（在好友页面初始化前）
+  Future<void> _initFriendBadge() async {
+    try {
+      final data = await ApiService.instance.getFriendRequests();
+      if (mounted) {
+        final count = data.length;
+        setState(() => _friendBadge = count);
+        FriendsPage.pendingRequestNotifier.value = count;
+      }
+    } catch (_) {
+      // API 失败时使用演示值 3，与 friends_page 保持一致
+      if (mounted) {
+        setState(() => _friendBadge = 3);
+        FriendsPage.pendingRequestNotifier.value = 3;
+      }
+    }
   }
 
   /// 建立WebSocket通话信令连接
@@ -224,6 +255,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   @override
   /// 释放资源，取消WebSocket监听
   void dispose() {
+    FriendsPage.pendingRequestNotifier.removeListener(_onFriendBadgeChanged);
     WebSocketService.shared.offCallStart(_onIncomingCall);
     WebSocketService.shared.offCallEnd(_onCallEndForIncoming);
     super.dispose();
@@ -245,6 +277,36 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       }
     });
 
+    // 动态构建底部导航栏项（好友Tab带角标）
+    final badge = _friendBadge;
+    final items = <BottomNavigationBarItem>[
+      const BottomNavigationBarItem(
+        icon: Icon(CupertinoIcons.chat_bubble),
+        activeIcon: Icon(CupertinoIcons.chat_bubble_fill),
+        label: '聊天',
+      ),
+      BottomNavigationBarItem(
+        icon: _buildTabIcon(CupertinoIcons.person_2, badge),
+        activeIcon: _buildTabIcon(CupertinoIcons.person_2_fill, badge),
+        label: '好友',
+      ),
+      const BottomNavigationBarItem(
+        icon: Icon(CupertinoIcons.globe),
+        activeIcon: Icon(CupertinoIcons.globe),
+        label: '广场',
+      ),
+      const BottomNavigationBarItem(
+        icon: Icon(CupertinoIcons.square_grid_2x2),
+        activeIcon: Icon(CupertinoIcons.square_grid_2x2_fill),
+        label: '服务',
+      ),
+      const BottomNavigationBarItem(
+        icon: Icon(CupertinoIcons.gear),
+        activeIcon: Icon(CupertinoIcons.gear_solid),
+        label: '设置',
+      ),
+    ];
+
     return CupertinoTabScaffold(
       tabBar: CupertinoTabBar(
         key: ValueKey('main_tabbar_$isDark'),
@@ -258,33 +320,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           ),
         ),
         height: 50,
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.chat_bubble),
-            activeIcon: Icon(CupertinoIcons.chat_bubble_fill),
-            label: '聊天',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.person_2),
-            activeIcon: Icon(CupertinoIcons.person_2_fill),
-            label: '好友',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.globe),
-            activeIcon: Icon(CupertinoIcons.globe),
-            label: '广场',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.square_grid_2x2),
-            activeIcon: Icon(CupertinoIcons.square_grid_2x2_fill),
-            label: '服务',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.gear),
-            activeIcon: Icon(CupertinoIcons.gear_solid),
-            label: '设置',
-          ),
-        ],
+        items: items,
       ),
       tabBuilder: (context, index) {
         return CupertinoTabView(
@@ -306,6 +342,38 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           },
         );
       },
+    );
+  }
+
+  /// 构建带角标的底部导航栏图标
+  Widget _buildTabIcon(IconData icon, int badge) {
+    if (badge <= 0) return Icon(icon);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(icon),
+        Positioned(
+          right: -8,
+          top: -6,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: const BoxDecoration(
+              color: CupertinoColors.destructiveRed,
+              shape: BoxShape.circle,
+            ),
+            constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+            child: Text(
+              badge > 9 ? '9+' : '$badge',
+              style: const TextStyle(
+                color: CupertinoColors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

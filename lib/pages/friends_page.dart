@@ -39,6 +39,9 @@ Color _nameToColor(String name) {
 class FriendsPage extends StatefulWidget {
   const FriendsPage({super.key});
 
+  /// 全局共享的待处理好友申请数，供底部导航栏角标和铃铛角标同步使用
+  static final ValueNotifier<int> pendingRequestNotifier = ValueNotifier<int>(0);
+
   @override
   State<FriendsPage> createState() => _FriendsPageState();
 }
@@ -49,7 +52,13 @@ class _FriendsPageState extends State<FriendsPage> {
   List<Map<String, dynamic>> _friends = [];
   bool _loading = true;
   int _pendingRequestCount = 0;
-  int _demoPendingCount = 2; // demo 模式下本地维护的待处理申请数
+  int _demoPendingCount = 3; // demo 模式下本地维护的待处理申请数
+
+  /// 更新待处理申请数并同步通知全局角标
+  void _setPendingCount(int count) {
+    _pendingRequestCount = count;
+    FriendsPage.pendingRequestNotifier.value = count;
+  }
 
   @override
   /// 初始化状态，加载好友数据
@@ -97,11 +106,11 @@ class _FriendsPageState extends State<FriendsPage> {
     try {
       final data = await ApiService.instance.getFriendRequests();
       if (mounted) {
-        setState(() => _pendingRequestCount = data.length);
+        setState(() => _setPendingCount(data.length));
       }
     } catch (_) {
       if (mounted) {
-        setState(() => _pendingRequestCount = _demoPendingCount);
+        setState(() => _setPendingCount(_demoPendingCount));
       }
     }
   }
@@ -188,26 +197,16 @@ class _FriendsPageState extends State<FriendsPage> {
 
   Future<void> _sendFriendRequest(String phone) async {
     try {
-      await ApiService.instance.sendFriendRequest(phone);
-      if (mounted) {
-        showCupertinoDialog(
-          context: context,
-          builder: (ctx) => CupertinoAlertDialog(
-            title: const Text('好友申请已发送'),
-            actions: [
-              CupertinoDialogAction(
-                child: const Text('确定'),
-                onPressed: () => Navigator.of(ctx).pop(),
-              ),
-            ],
-          ),
-        );
-      }
-    } catch (e) {
+      final result = await ApiService.instance.sendFriendRequest(phone);
       if (!mounted) return;
-      final errMsg = e.toString();
-      // 已经是好友：友好提示并刷新列表
-      if (errMsg.toLowerCase().contains('already friends')) {
+
+      if (result != null) {
+        // 已经是好友：API 返回了对方用户信息
+        final nickname = result['nickname'] as String? ?? '';
+        final userId = result['id'] as String? ?? '';
+        final displayName = nickname.isNotEmpty ? nickname : phone;
+
+        // 1) 友好提示
         showCupertinoDialog(
           context: context,
           builder: (ctx) => CupertinoAlertDialog(
@@ -221,14 +220,57 @@ class _FriendsPageState extends State<FriendsPage> {
             ],
           ),
         );
-        _loadFriends();
+
+        // 2) 确保好友在本地列表中（API 刷新时会合并 _extraDemoFriends）
+        if (userId.isNotEmpty) {
+          final alreadyTracked = _extraDemoFriends
+              .any((f) => f['user_id'] == userId);
+          if (!alreadyTracked) {
+            _extraDemoFriends.add({
+              'user_id': userId,
+              'nickname': displayName,
+              'phone': phone,
+            });
+          }
+        }
+
+        // 3) 确保聊天列表中有对方会话
+        final chat = ChatModel(
+          name: displayName,
+          lastMessage: '你们已成为好友，开始聊天吧',
+          time: '',
+          unreadCount: 0,
+          initial: displayName.isNotEmpty ? displayName.characters.first : '?',
+          avatarColor: _nameToColor(displayName),
+          targetUserId: userId,
+        );
+        ChatPage.addFriendConversation(chat);
+
+        // 4) 刷新好友列表（API 数据 + 合并 extras）
+        await _loadFriends();
         return;
       }
+
+      // 申请发送成功
+      showCupertinoDialog(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('好友申请已发送'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('确定'),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
       showCupertinoDialog(
         context: context,
         builder: (ctx) => CupertinoAlertDialog(
           title: const Text('发送失败'),
-          content: Text(errMsg.replaceFirst('Exception: ', '')),
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
           actions: [
             CupertinoDialogAction(
               child: const Text('确定'),
@@ -248,7 +290,7 @@ class _FriendsPageState extends State<FriendsPage> {
           onCountChanged: (remaining) {
             _demoPendingCount = remaining; // 同步本地变量
             if (mounted) {
-              setState(() => _pendingRequestCount = remaining);
+              setState(() => _setPendingCount(remaining));
             }
           },
         ),

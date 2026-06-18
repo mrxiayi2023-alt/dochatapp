@@ -197,8 +197,48 @@ class ApiService {
   // -------------------------------------------------------------------------
 
   /// Send a friend request by phone number.
-  Future<void> sendFriendRequest(String toPhone) async {
-    await _dio.post('/friends/request', data: {'to_phone': toPhone});
+  /// Returns null on success (request sent).
+  /// Returns a user-info Map when users are already friends.
+  /// Throws [Exception] on other errors.
+  Future<Map<String, dynamic>?> sendFriendRequest(String toPhone) async {
+    String? errorMsg;
+
+    try {
+      final response = await _dio.post('/friends/request', data: {'to_phone': toPhone});
+      // Check response body for application-level errors
+      final data = response.data as Map<String, dynamic>?;
+      if (data != null) {
+        final code = data['code'] as int?;
+        if (code != null && code != 200) {
+          errorMsg = data['message'] as String? ?? '请求失败';
+        }
+      }
+    } on DioException catch (e) {
+      errorMsg = _extractErrorMessage(e);
+      if (errorMsg.isEmpty) errorMsg = '请求失败';
+    }
+
+    if (errorMsg != null) {
+      // If already friends, search for the user and return their info
+      if (errorMsg.toLowerCase().contains('already friends')) {
+        try {
+          return await searchUser(toPhone);
+        } catch (_) {
+          return null;
+        }
+      }
+      throw Exception(errorMsg);
+    }
+
+    return null; // success — request sent
+  }
+
+  /// Extract a human-readable error message from a DioException
+  String _extractErrorMessage(DioException e) {
+    final data = e.response?.data;
+    if (data is Map) return (data['message'] as String?) ?? '';
+    if (data is String) return data;
+    return e.message ?? '';
   }
 
   /// Get incoming friend requests.
