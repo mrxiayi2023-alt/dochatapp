@@ -243,13 +243,97 @@ class _MemberBar extends StatelessWidget {
     );
   }
 
+  /// 弹出完整群成员列表的 ActionSheet
+  void _showMemberListSheet(BuildContext context) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: Text('群成员（共${members.length}人）'),
+        actions: members.map((name) {
+          return CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              if (name != '自己') {
+                _showProfileSheet(context, name);
+              }
+            },
+            child: SizedBox(
+              height: 44,
+              child: Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: _nameToColor(name),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      name.isNotEmpty ? name[0] : '?',
+                      style: const TextStyle(
+                        color: CupertinoColors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(name, style: const TextStyle(fontSize: 16)),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('取消'),
+        ),
+      ),
+    );
+  }
+
   @override
-  /// 构建群聊成员横排，支持水平滑动
+  /// 构建群聊成员横排，根据屏幕宽度动态计算可显示成员数
   Widget build(BuildContext context) {
     final allMembers = members;
-    const maxShow = 8;
-    final showCount = allMembers.length > maxShow ? maxShow : allMembers.length;
-    final overflow = allMembers.length > maxShow ? allMembers.length - maxShow : 0;
+    final total = allMembers.length;
+    if (total == 0) return const SizedBox.shrink();
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final availableWidth = screenWidth - 32; // 两侧各 16px 内边距
+    const memberItemWidth = 85.0;
+    const gapWidth = 14.0;
+    const overflowBtnWidth = 28.0;
+    const trailingGap = 4.0;
+
+    // 检查是否所有成员都能放下
+    final allFit = total * memberItemWidth +
+            (total - 1) * gapWidth +
+            trailingGap <=
+        availableWidth;
+
+    int visibleCount;
+    int overflow;
+    if (allFit) {
+      visibleCount = total;
+      overflow = 0;
+    } else {
+      // 逐个尝试：N 个成员 + 溢出按钮 的宽度
+      visibleCount = 1;
+      for (int n = total - 1; n >= 1; n--) {
+        final width = n * memberItemWidth +
+            n * gapWidth +
+            overflowBtnWidth +
+            trailingGap;
+        if (width <= availableWidth) {
+          visibleCount = n;
+          break;
+        }
+      }
+      overflow = total - visibleCount;
+    }
 
     return Container(
       height: 62,
@@ -260,21 +344,17 @@ class _MemberBar extends StatelessWidget {
           bottom: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5),
         ),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: Row(
-          children: [
-            for (int idx = 0; idx < showCount; idx++) ...[
-              _buildMemberItem(context, allMembers[idx]),
-              const SizedBox(width: 14),
-            ],
-            if (overflow > 0)
-              _buildOverflowItem(context, overflow),
-            const SizedBox(width: 4), // trailing gap for comfort
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          for (int idx = 0; idx < visibleCount; idx++) ...[
+            _buildMemberItem(context, allMembers[idx]),
+            const SizedBox(width: 14),
           ],
-        ),
+          if (overflow > 0)
+            _buildOverflowButton(overflow, () => _showMemberListSheet(context)),
+          const SizedBox(width: 4),
+        ],
       ),
     );
   }
@@ -326,39 +406,31 @@ class _MemberBar extends StatelessWidget {
     );
   }
 
-  Widget _buildOverflowItem(BuildContext context, int overflow) {
-    return SizedBox(
-      width: 55,
-      child: GestureDetector(
-        onTap: () => () /* FIXED: removed print */,
+  /// "+M" 溢出按钮：灰色圆形，直径 28px，白色文字
+  Widget _buildOverflowButton(int overflow, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 28,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 24,
-              height: 24,
+              width: 28,
+              height: 28,
               decoration: const BoxDecoration(
-                color: CupertinoColors.systemGrey5,
+                color: CupertinoColors.systemGrey4,
                 shape: BoxShape.circle,
               ),
               alignment: Alignment.center,
               child: Text(
                 '+$overflow',
                 style: const TextStyle(
-                  fontSize: 11,
+                  color: CupertinoColors.white,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: CupertinoColors.systemGrey,
                 ),
               ),
-            ),
-            const SizedBox(height: 3),
-            const Text(
-              '更多',
-              style: TextStyle(
-                fontSize: 10,
-                color: CupertinoColors.systemGrey,
-              ),
-              textAlign: TextAlign.center,
             ),
           ],
         ),
