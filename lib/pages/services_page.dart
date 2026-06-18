@@ -4,6 +4,7 @@ import 'housing_page.dart';
 import 'dating_page.dart';
 import 'jobs_page.dart';
 import 'mail_page.dart';
+import 'mall_page.dart';
 
 // ---------------------------------------------------------------------------
 // Data Models
@@ -72,6 +73,10 @@ class ServicesPage extends StatelessWidget {
       case '电子邮箱':
         return () => Navigator.of(context).push(
               CupertinoPageRoute(builder: (_) => const MailPage()),
+            );
+      case '电邮商城':
+        return () => Navigator.of(context).push(
+              CupertinoPageRoute(builder: (_) => const MallPage()),
             );
       default:
         return null; // falls back to "即将上线" dialog
