@@ -265,7 +265,7 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
 // Request Item
 // ---------------------------------------------------------------------------
 
-class _RequestItem extends StatelessWidget {
+class _RequestItem extends StatefulWidget {
   final String nickname;
   final String phone;
   final String requestId;
@@ -287,6 +287,114 @@ class _RequestItem extends StatelessWidget {
     this.onDelete,
     this.isLast = false,
   });
+
+  @override
+  State<_RequestItem> createState() => _RequestItemState();
+}
+
+class _RequestItemState extends State<_RequestItem> with SingleTickerProviderStateMixin {
+  static const double _deleteBtnWidth = 80.0;
+  static const double _revealThreshold = 40.0;
+
+  double _dragOffset = 0;
+  bool _isRevealed = false;
+  late AnimationController _animController;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      duration: const Duration(milliseconds: 250),
+      vsync: this,
+    );
+    _anim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _animController.addListener(() {
+      setState(() => _dragOffset = _anim.value);
+    });
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    if (_isRevealed) {
+      // dragging back when revealed
+      final newOffset = -_deleteBtnWidth + details.delta.dx;
+      if (newOffset <= 0) {
+        setState(() => _dragOffset = newOffset);
+      }
+    } else {
+      final newOffset = _dragOffset + details.delta.dx;
+      if (newOffset < 0 && newOffset > -_deleteBtnWidth) {
+        setState(() => _dragOffset = newOffset);
+      }
+    }
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    if (_isRevealed) {
+      // if dragged back past half, snap closed; else stay open
+      if (_dragOffset > -_revealThreshold) {
+        _snapClose();
+      } else {
+        _snapOpen();
+      }
+    } else {
+      if (_dragOffset < -_revealThreshold) {
+        _snapOpen();
+      } else {
+        _snapClose();
+      }
+    }
+  }
+
+  Animation<double> _buildAnim(double begin, double end, {double? fractionOf250}) {
+    final dur = Duration(
+      milliseconds: ((fractionOf250 ?? 1.0) * 250).toInt().clamp(100, 250),
+    );
+    _animController.duration = dur;
+    _anim = Tween<double>(begin: begin, end: end).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeOut),
+    );
+    return _anim;
+  }
+
+  void _snapOpen() {
+    final fraction = 1 - (_dragOffset - (-_deleteBtnWidth)).abs() / _deleteBtnWidth;
+    _isRevealed = true;
+    _buildAnim(_dragOffset, -_deleteBtnWidth, fractionOf250: fraction);
+    _animController
+      ..reset()
+      ..forward();
+  }
+
+  void _snapClose() {
+    _isRevealed = false;
+    final fraction = _dragOffset.abs() / _deleteBtnWidth;
+    _buildAnim(_dragOffset, 0, fractionOf250: fraction);
+    _animController
+      ..reset()
+      ..forward();
+  }
+
+  void _onContentTap() {
+    if (_isRevealed) {
+      _snapClose();
+    }
+  }
+
+  void _onDeleteTap() {
+    widget.onDelete?.call();
+    // After delete, reset state (widget may be removed by parent)
+    setState(() {
+      _dragOffset = 0;
+      _isRevealed = false;
+    });
+  }
 
   Color _colorFromName(String name) {
     const colors = [
@@ -320,28 +428,15 @@ class _RequestItem extends StatelessWidget {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final initial = nickname.isNotEmpty ? nickname.characters.first : '?';
-    final timeStr = _formatRelativeTime(createdAt);
+  /// 构建内容行（头像、昵称、时间、状态按钮）
+  Widget _buildContentRow() {
+    final initial = widget.nickname.isNotEmpty ? widget.nickname.characters.first : '?';
+    final timeStr = _formatRelativeTime(widget.createdAt);
 
-    return Dismissible(
-      key: ValueKey('request_$requestId'),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        color: CupertinoColors.destructiveRed,
-        child: const Text(
-          '删除',
-          style: TextStyle(
-            color: CupertinoColors.white,
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-      onDismissed: (_) => onDelete?.call(),
+    return GestureDetector(
+      onTap: _onContentTap,
+      onHorizontalDragUpdate: _onDragUpdate,
+      onHorizontalDragEnd: _onDragEnd,
       child: Container(
         height: 72,
         color: CupertinoColors.white,
@@ -356,7 +451,7 @@ class _RequestItem extends StatelessWidget {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: _colorFromName(nickname),
+                      color: _colorFromName(widget.nickname),
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
@@ -377,7 +472,7 @@ class _RequestItem extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          nickname,
+                          widget.nickname,
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -396,7 +491,7 @@ class _RequestItem extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (status == 'accepted')
+                  if (widget.status == 'accepted')
                     // 已接受 — 灰色文字
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -409,7 +504,7 @@ class _RequestItem extends StatelessWidget {
                         ),
                       ),
                     )
-                  else if (status == 'rejected')
+                  else if (widget.status == 'rejected')
                     // 已拒绝 — 灰色文字
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -429,7 +524,7 @@ class _RequestItem extends StatelessWidget {
                       borderRadius: const BorderRadius.all(Radius.circular(16)),
                       color: CupertinoColors.activeBlue,
                       pressedOpacity: 0.7,
-                      onPressed: onAccept,
+                      onPressed: widget.onAccept,
                       child: const Text(
                         '接受',
                         style: TextStyle(
@@ -445,7 +540,7 @@ class _RequestItem extends StatelessWidget {
                       borderRadius: const BorderRadius.all(Radius.circular(16)),
                       color: CupertinoColors.systemGrey5,
                       pressedOpacity: 0.7,
-                      onPressed: onReject,
+                      onPressed: widget.onReject,
                       child: const Text(
                         '拒绝',
                         style: TextStyle(
@@ -459,7 +554,7 @@ class _RequestItem extends StatelessWidget {
                 ],
               ),
             ),
-            if (!isLast)
+            if (!widget.isLast)
               Container(
                 height: 0.5,
                 margin: const EdgeInsets.only(left: 72),
@@ -468,6 +563,38 @@ class _RequestItem extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Red delete button layer (underneath)
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: _isRevealed ? _onDeleteTap : null,
+            child: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 20),
+              color: CupertinoColors.destructiveRed,
+              child: const Text(
+                '删除',
+                style: TextStyle(
+                  color: CupertinoColors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ),
+        // Content layer (slides left on swipe)
+        Transform.translate(
+          offset: Offset(_dragOffset, 0),
+          child: _buildContentRow(),
+        ),
+      ],
     );
   }
 }
