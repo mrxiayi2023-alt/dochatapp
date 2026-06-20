@@ -22,6 +22,12 @@ class _EscrowOrder {
   final String deliveryTime;
   final String breach;
   String? arbitrationVerdict;
+  // Deposit & phase payment state
+  bool initiatorDepositPaid = false;
+  bool counterpartyDepositPaid = false;
+  int? pendingPhase; // phase number (1/2/3) awaiting initiator confirmation
+  final Set<int> completedPhases = {};
+  bool counterpartyRejected = false;
 
   _EscrowOrder({
     required this.id,
@@ -162,7 +168,7 @@ class _EscrowPageState extends State<EscrowPage> {
       depositMode: result['deposit_mode'] as int? ?? 0,
       counterpartyName: result['counterparty_name'] as String? ?? '',
       counterpartyPhone: result['counterparty_phone'] as String? ?? '',
-      status: 'pending',
+      status: 'waiting_confirmation',
       installment: result['installment'] as bool? ?? false,
       phase1Percent: result['phase1_percent'] as int?,
       phase2Percent: result['phase2_percent'] as int?,
@@ -230,6 +236,20 @@ class _EscrowPageState extends State<EscrowPage> {
                   '¥${order.amount.toStringAsFixed(2)} ${isCustody ? "(托管中)" : "(已释放)"}'),
               const SizedBox(height: 6),
               _buildInfoRow(CupertinoIcons.shield, '押金方式', depositLabel),
+              // Deposit payment status
+              Padding(
+                padding: const EdgeInsets.only(left: 21, top: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildDepositPaidRow('发起方', order.initiatorDepositPaid),
+                    if (order.depositMode == 1) ...[
+                      const SizedBox(height: 2),
+                      _buildDepositPaidRow('接收方', order.counterpartyDepositPaid),
+                    ],
+                  ],
+                ),
+              ),
               const SizedBox(height: 6),
               _buildInfoRow(CupertinoIcons.phone, '对方手机', order.counterpartyPhone),
               const SizedBox(height: 6),
@@ -240,14 +260,51 @@ class _EscrowPageState extends State<EscrowPage> {
                 const SizedBox(height: 4),
                 Padding(
                   padding: const EdgeInsets.only(left: 21),
-                  child: Text(
-                    '一期${order.phase1Percent ?? 0}% · 二期${order.phase2Percent ?? 0}% · 三期${order.phase3Percent ?? 0}%',
-                    style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey2),
+                  child: _buildPhaseProgress(order),
+                ),
+              ],
+              // Pending phase payment - initiator sees confirm/reject
+              if (order.pendingPhase != null && order.status == 'active') ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemYellow.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(CupertinoIcons.clock, size: 14, color: CupertinoColors.systemOrange),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text('接收方申请${_phaseLabel(order.pendingPhase!)}收款',
+                            style: const TextStyle(fontSize: 12, color: CupertinoColors.systemOrange)),
+                      ),
+                      CupertinoButton(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        minimumSize: Size.zero,
+                        borderRadius: BorderRadius.circular(10),
+                        color: CupertinoColors.systemGreen,
+                        pressedOpacity: 0.7,
+                        onPressed: () => _confirmPhasePayment(order),
+                        child: const Text('确认付款', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
+                      ),
+                      const SizedBox(width: 6),
+                      CupertinoButton(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        minimumSize: Size.zero,
+                        borderRadius: BorderRadius.circular(10),
+                        color: CupertinoColors.destructiveRed,
+                        pressedOpacity: 0.7,
+                        onPressed: () => _rejectPhasePayment(order),
+                        child: const Text('拒绝', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
+                      ),
+                    ],
                   ),
                 ),
               ],
               // Quick action buttons
-              if (order.status == 'pending' || order.status == 'active' || order.status == 'reviewing' || order.status == 'disputed') ...[
+              if (order.status == 'waiting_confirmation' || order.status == 'active' || order.status == 'reviewing' || order.status == 'disputed' || order.status == 'rejected') ...[
                 const SizedBox(height: 12),
                 Container(
                   height: 0.5,
@@ -257,16 +314,29 @@ class _EscrowPageState extends State<EscrowPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    if (order.status == 'pending')
+                    // 接收方：确认/拒绝担保 (waiting_confirmation)
+                    if (order.status == 'waiting_confirmation') ...[
                       CupertinoButton(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                         minimumSize: Size.zero,
                         borderRadius: BorderRadius.circular(14),
                         color: CupertinoColors.systemGreen,
                         pressedOpacity: 0.7,
-                        onPressed: () => _advanceStatus(order, 'active', '对方已确认担保单'),
-                        child: const Text('对方确认', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
+                        onPressed: () => _counterpartyConfirm(order),
+                        child: const Text('接收方确认', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
                       ),
+                      const SizedBox(width: 8),
+                      CupertinoButton(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        minimumSize: Size.zero,
+                        borderRadius: BorderRadius.circular(14),
+                        color: CupertinoColors.destructiveRed.withValues(alpha: 0.8),
+                        pressedOpacity: 0.7,
+                        onPressed: () => _counterpartyReject(order),
+                        child: const Text('接收方拒绝', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
+                      ),
+                    ],
+                    // 发起方：确认履约 (active)
                     if (order.status == 'active')
                       CupertinoButton(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -277,6 +347,18 @@ class _EscrowPageState extends State<EscrowPage> {
                         onPressed: () => _advanceStatus(order, 'reviewing', '已提交验收'),
                         child: const Text('确认履约', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
                       ),
+                    // 接收方：申请阶段收款 (active, installment)
+                    if (order.status == 'active' && order.installment && order.completedPhases.length < 3)
+                      CupertinoButton(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        minimumSize: Size.zero,
+                        borderRadius: BorderRadius.circular(14),
+                        color: CupertinoColors.systemTeal,
+                        pressedOpacity: 0.7,
+                        onPressed: () => _showRequestPhaseSheet(order),
+                        child: const Text('申请阶段收款', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
+                      ),
+                    // 发起方：确认验收 (reviewing)
                     if (order.status == 'reviewing')
                       CupertinoButton(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -287,9 +369,9 @@ class _EscrowPageState extends State<EscrowPage> {
                         onPressed: () => _advanceStatus(order, 'completed', '担保单已完成，资金已释放'),
                         child: const Text('确认验收', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
                       ),
-                    // 仲裁按钮触发条件：对方拒绝确认或超时未确认时显示
-                    // 当前UI保持对active/reviewing状态可见，正式上线前调整为条件触发
-                    if (order.status == 'active' || order.status == 'reviewing')
+                    // 仲裁按钮
+                    // 触发条件：接收方拒绝确认 | 接收方超时未确认 | 发起方拒绝阶段付款
+                    if (order.status == 'rejected' || order.status == 'active' || order.status == 'reviewing')
                       CupertinoButton(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                         minimumSize: Size.zero,
@@ -309,6 +391,57 @@ class _EscrowPageState extends State<EscrowPage> {
     );
   }
 
+  Widget _buildDepositPaidRow(String role, bool paid) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(role, style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey2)),
+        const SizedBox(width: 4),
+        Text(paid ? '已付🟢' : '未付⚫',
+            style: TextStyle(fontSize: 11, color: paid ? CupertinoColors.systemGreen : CupertinoColors.systemGrey2)),
+      ],
+    );
+  }
+
+  Widget _buildPhaseProgress(_EscrowOrder order) {
+    final phases = [
+      (1, order.phase1Percent ?? 0),
+      (2, order.phase2Percent ?? 0),
+      (3, order.phase3Percent ?? 0),
+    ];
+    return Wrap(
+      spacing: 8,
+      runSpacing: 2,
+      children: phases.map((p) {
+        final (num, pct) = p;
+        final done = order.completedPhases.contains(num);
+        final pending = order.pendingPhase == num;
+        String mark = '';
+        if (done) {
+          mark = ' ✓';
+        } else if (pending) {
+          mark = ' ⏳';
+        }
+        return Text(
+          '${_phaseLabel(num)}$pct%$mark',
+          style: TextStyle(
+            fontSize: 11,
+            color: done
+                ? CupertinoColors.systemGreen
+                : pending
+                    ? CupertinoColors.systemOrange
+                    : CupertinoColors.systemGrey2,
+            fontWeight: done ? FontWeight.w600 : FontWeight.w400,
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  String _phaseLabel(int phase) {
+    return ['', '一期', '二期', '三期'][phase];
+  }
+
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(children: [
       Icon(icon, size: 15, color: CupertinoColors.systemGrey2),
@@ -321,30 +454,32 @@ class _EscrowPageState extends State<EscrowPage> {
 
   String _statusLabel(String status) {
     switch (status) {
-      case 'pending': return '待确认';
+      case 'waiting_confirmation': return '待对方确认';
       case 'active': return '履约中';
       case 'reviewing': return '待验收';
       case 'completed': return '已完成';
       case 'cancelled': return '已取消';
       case 'disputed': return '争议中';
+      case 'rejected': return '已拒绝';
       default: return status;
     }
   }
 
   Color _statusColor(String status) {
     switch (status) {
-      case 'pending': return CupertinoColors.systemOrange;
+      case 'waiting_confirmation': return CupertinoColors.systemOrange;
       case 'active': return CupertinoColors.activeBlue;
       case 'reviewing': return CupertinoColors.systemPurple;
       case 'completed': return CupertinoColors.systemGreen;
       case 'cancelled': return CupertinoColors.systemGrey;
       case 'disputed': return CupertinoColors.destructiveRed;
+      case 'rejected': return CupertinoColors.destructiveRed;
       default: return CupertinoColors.systemGrey;
     }
   }
 
   bool get _isCustody =>
-      _orders.any((o) => o.status == 'pending' || o.status == 'active' || o.status == 'reviewing' || o.status == 'disputed');
+      _orders.any((o) => o.status == 'waiting_confirmation' || o.status == 'active' || o.status == 'reviewing' || o.status == 'disputed');
 
   void _showOrderDetail(_EscrowOrder order) {
     final isCustody = order.status != 'completed' && order.status != 'cancelled';
@@ -369,6 +504,20 @@ class _EscrowPageState extends State<EscrowPage> {
                 _detailRow('金额', '¥${order.amount.toStringAsFixed(2)} (${isCustody ? "托管中" : "已释放"})'),
                 const SizedBox(height: 4),
                 _detailRow('押金方式', depositLabel),
+                const SizedBox(height: 2),
+                Padding(
+                  padding: const EdgeInsets.only(left: 60),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('发起方：${order.initiatorDepositPaid ? "已付🟢" : "未付⚫"}',
+                          style: TextStyle(fontSize: 12, color: order.initiatorDepositPaid ? CupertinoColors.systemGreen : CupertinoColors.systemGrey)),
+                      if (order.depositMode == 1)
+                        Text('接收方：${order.counterpartyDepositPaid ? "已付🟢" : "未付⚫"}',
+                            style: TextStyle(fontSize: 12, color: order.counterpartyDepositPaid ? CupertinoColors.systemGreen : CupertinoColors.systemGrey)),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 4),
                 _detailRow('状态', _statusLabel(order.status)),
                 const SizedBox(height: 4),
@@ -385,11 +534,17 @@ class _EscrowPageState extends State<EscrowPage> {
                   const SizedBox(height: 8),
                   const Text('分阶段付款', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CupertinoColors.systemGrey)),
                   const SizedBox(height: 4),
-                  Text('一期：${order.phase1Percent ?? 0}%', style: const TextStyle(fontSize: 13)),
-                  const SizedBox(height: 2),
-                  Text('二期：${order.phase2Percent ?? 0}%', style: const TextStyle(fontSize: 13)),
-                  const SizedBox(height: 2),
-                  Text('三期：${order.phase3Percent ?? 0}%（自动计算）', style: const TextStyle(fontSize: 13)),
+                  for (final p in [1, 2, 3]) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '${_phaseLabel(p)}：${p == 1 ? order.phase1Percent : p == 2 ? order.phase2Percent : order.phase3Percent}%'
+                      '${order.completedPhases.contains(p) ? " ✓已付" : order.pendingPhase == p ? " ⏳待确认" : ""}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: order.completedPhases.contains(p) ? CupertinoColors.systemGreen : CupertinoColors.black,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 2),
                   const Text('每期均需双方人脸识别确认',
                       style: TextStyle(fontSize: 11, color: CupertinoColors.systemGrey3)),
@@ -429,14 +584,23 @@ class _EscrowPageState extends State<EscrowPage> {
           ),
         ),
         actions: [
-          if (order.status == 'pending')
+          if (order.status == 'waiting_confirmation') ...[
             CupertinoDialogAction(
               onPressed: () {
                 Navigator.of(ctx).pop();
-                _advanceStatus(order, 'active', '对方已确认担保单');
+                _counterpartyConfirm(order);
               },
-              child: const Text('模拟对方确认'),
+              child: const Text('模拟接收方确认'),
             ),
+            CupertinoDialogAction(
+              isDestructiveAction: true,
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _counterpartyReject(order);
+              },
+              child: const Text('模拟接收方拒绝'),
+            ),
+          ],
           if (order.status == 'active')
             CupertinoDialogAction(
               onPressed: () {
@@ -453,8 +617,17 @@ class _EscrowPageState extends State<EscrowPage> {
               },
               child: const Text('确认验收'),
             ),
-          // Arbitration button (active / reviewing / completed / disputed)
-          if (order.status == 'active' || order.status == 'reviewing')
+          // Simulate deposit payment
+          if (!order.initiatorDepositPaid || (order.depositMode == 1 && !order.counterpartyDepositPaid))
+            CupertinoDialogAction(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _simulatePayDeposit(order);
+              },
+              child: const Text('模拟押金付清'),
+            ),
+          // Arbitration button
+          if (order.status == 'active' || order.status == 'reviewing' || order.status == 'rejected')
             CupertinoDialogAction(
               isDestructiveAction: true,
               onPressed: () {
@@ -605,6 +778,151 @@ class _EscrowPageState extends State<EscrowPage> {
       ),
     );
   }
+
+  // -------------------------------------------------------------------------
+  // Counterparty actions
+  // -------------------------------------------------------------------------
+
+  void _counterpartyConfirm(_EscrowOrder order) {
+    setState(() {
+      order.status = 'active';
+      order.initiatorDepositPaid = true;
+      order.counterpartyDepositPaid = true;
+    });
+    _showSimpleToast('接收方已确认担保单，押金已付清，订单生效');
+  }
+
+  void _counterpartyReject(_EscrowOrder order) {
+    setState(() {
+      order.status = 'rejected';
+      order.counterpartyRejected = true;
+    });
+    _showSimpleToast('接收方已拒绝担保单，发起方可申请仲裁');
+  }
+
+  // -------------------------------------------------------------------------
+  // Deposit simulation
+  // -------------------------------------------------------------------------
+
+  void _simulatePayDeposit(_EscrowOrder order) {
+    setState(() {
+      order.initiatorDepositPaid = true;
+      if (order.depositMode == 1) {
+        order.counterpartyDepositPaid = true;
+      }
+    });
+    final label = order.depositMode == 0 ? '发起方押金已付清' : '双方押金已付清';
+    _showSimpleToast(label);
+  }
+
+  // -------------------------------------------------------------------------
+  // Phase payment flow
+  // -------------------------------------------------------------------------
+
+  void _showRequestPhaseSheet(_EscrowOrder order) {
+    final available = <int>[];
+    for (var i = 1; i <= 3; i++) {
+      if (!order.completedPhases.contains(i) && order.pendingPhase != i) {
+        available.add(i);
+      }
+    }
+    if (available.isEmpty) {
+      _showSimpleToast('所有阶段已完成或待确认');
+      return;
+    }
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('选择收款阶段'),
+        actions: available.map((phase) {
+          final pct = phase == 1
+              ? order.phase1Percent
+              : phase == 2
+                  ? order.phase2Percent
+                  : order.phase3Percent;
+          return CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _requestPhasePayment(order, phase, pct ?? 0);
+            },
+            child: Text('${_phaseLabel(phase)}（${pct ?? 0}%）'),
+          );
+        }).toList(),
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('取消'),
+        ),
+      ),
+    );
+  }
+
+  void _requestPhasePayment(_EscrowOrder order, int phase, int percent) {
+    setState(() => order.pendingPhase = phase);
+    _showSimpleToast('已发起${_phaseLabel(phase)}收款申请（$percent%），等待发起方确认');
+  }
+
+  void _confirmPhasePayment(_EscrowOrder order) {
+    final phase = order.pendingPhase;
+    if (phase == null) return;
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('人脸识别验证'),
+        content: const Text('将进行人脸识别验证，确认后款项将释放给接收方。\n\n请确保光线充足，面部正对摄像头。'),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          CupertinoDialogAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              setState(() {
+                order.completedPhases.add(phase);
+                order.pendingPhase = null;
+              });
+              _showSimpleToast('人脸识别通过，${_phaseLabel(phase)}款项已释放');
+            },
+            child: const Text('开始识别'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _rejectPhasePayment(_EscrowOrder order) {
+    final phase = order.pendingPhase;
+    if (phase == null) return;
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('拒绝阶段付款'),
+        content: const Text('拒绝后接收方可申请仲裁。\n\n确认拒绝？'),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              setState(() => order.pendingPhase = null);
+              _showSimpleToast('已拒绝${_phaseLabel(phase)}付款，接收方可申请仲裁');
+            },
+            child: const Text('确认拒绝'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Status advancement
+  // -------------------------------------------------------------------------
 
   void _advanceStatus(_EscrowOrder order, String newStatus, String message) {
     setState(() => order.status = newStatus);

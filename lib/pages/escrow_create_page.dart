@@ -159,6 +159,12 @@ class _EscrowCreatePageState extends State<EscrowCreatePage> {
                   ),
                 ),
               ),
+              const SizedBox(height: 8),
+              const Text(
+                '双方押金付清后订单方可生效',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey3),
+              ),
             ],
           ),
         ),
@@ -287,6 +293,33 @@ class _EscrowCreatePageState extends State<EscrowCreatePage> {
             ],
           ),
         ),
+        _sectionDivider(),
+        // Deposit status preview
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDepositStatusRow('发起方', false),
+              if (_depositMode == 1) ...[
+                const SizedBox(height: 4),
+                _buildDepositStatusRow('接收方', false),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDepositStatusRow(String role, bool paid) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(role, style: const TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+        const SizedBox(width: 6),
+        Text(paid ? '已付🟢' : '未付⚫',
+            style: TextStyle(fontSize: 12, color: paid ? CupertinoColors.systemGreen : CupertinoColors.systemGrey2)),
       ],
     );
   }
