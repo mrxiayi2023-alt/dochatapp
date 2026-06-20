@@ -15,32 +15,42 @@ class _EscrowCreatePageState extends State<EscrowCreatePage> {
   final _breachController = TextEditingController();
   int _breachRate = 5;
   bool _dateSelected = false;
-  int _depositMode = 0; // 0=单向押金, 1=双向押金
+  int _depositMode = 0; // 0=单向上押, 1=双向上押
+  int _depositPayer = 0; // 0=发起方上押, 1=接收方上押 (仅单向上押时有效)
   bool _installment = false;
   int _phase1Percent = 40;
   int _phase2Percent = 30;
   int _feePayer = 0;
   String? _selectedContactName;
   String? _selectedContactPhone;
-  int _selectedYear = 2026;
-  int _selectedMonth = 6;
-  int _selectedDay = 20;
+  late int _selectedYear;
+  late int _selectedMonth;
+  late int _selectedDay;
+  int _selectedHour = 9;
 
-  static const _depositLabels = ['单向押金', '双向押金'];
+  static const _depositLabels = ['单向上押', '双向上押'];
   static const _feeLabels = ['发起方', '接收方', '平摊'];
 
   int get _phase3Percent => 100 - _phase1Percent - _phase2Percent;
 
   String get _dateDisplay {
-    final m = _selectedMonth.toString().padLeft(2, '0');
-    final d = _selectedDay.toString().padLeft(2, '0');
-    return '$_selectedYear-$m-$d';
+    return '$_selectedYear年$_selectedMonth月$_selectedDay日$_selectedHour时';
   }
 
   bool get _canSubmit =>
       _titleController.text.trim().isNotEmpty &&
       _amountController.text.trim().isNotEmpty &&
       _selectedContactName != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    _selectedYear = tomorrow.year;
+    _selectedMonth = tomorrow.month;
+    _selectedDay = tomorrow.day;
+    _selectedHour = 9;
+  }
 
   @override
   void dispose() {
@@ -55,8 +65,85 @@ class _EscrowCreatePageState extends State<EscrowCreatePage> {
     if (!_canSubmit) return;
     VerificationService.checkVerification(
       context,
-      () => _doSubmit(),
+      () {
+        // 双向上押 或 单向上押+发起方上押：发起方必须先付押金
+        if (_depositMode == 1 || (_depositMode == 0 && _depositPayer == 0)) {
+          _showInitiatorPaymentSheet();
+        } else {
+          _doSubmit();
+        }
+      },
       message: '发起担保需要完成实名认证，请先进行认证。',
+    );
+  }
+
+  void _showInitiatorPaymentSheet() {
+    final label = _depositMode == 1 ? '双向上押' : '单向上押';
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: Text('$label — 发起方支付押金'),
+        message: const Text('发起方需先付清押金才能创建担保单'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _showPaymentSimulation('支付宝');
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(CupertinoIcons.money_yen_circle, size: 18, color: CupertinoColors.systemBlue),
+                SizedBox(width: 8),
+                Text('支付宝支付'),
+              ],
+            ),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _showPaymentSimulation('微信支付');
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(CupertinoIcons.chat_bubble_text, size: 18, color: CupertinoColors.systemGreen),
+                SizedBox(width: 8),
+                Text('微信支付'),
+              ],
+            ),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('取消'),
+        ),
+      ),
+    );
+  }
+
+  void _showPaymentSimulation(String method) {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text('$method支付'),
+        content: const Text('支付功能即将上线，模拟支付成功。'),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          CupertinoDialogAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _doSubmit();
+            },
+            child: const Text('确认支付'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -71,6 +158,8 @@ class _EscrowCreatePageState extends State<EscrowCreatePage> {
       'amount': amount,
       'breach_rate': _breachRate / 100.0,
       'deposit_mode': _depositMode,
+      'deposit_payer': _depositPayer,
+      'initiator_paid': _depositMode == 1 || (_depositMode == 0 && _depositPayer == 0),
       'counterparty_name': _selectedContactName!,
       'counterparty_phone': _selectedContactPhone!,
       'installment': _installment,
@@ -160,10 +249,12 @@ class _EscrowCreatePageState extends State<EscrowCreatePage> {
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                '双方押金付清后订单方可生效',
+              Text(
+                _depositMode == 0
+                    ? (_depositPayer == 0 ? '发起方押金付清后订单方可生效' : '接收方押金付清后订单方可生效')
+                    : '双方押金付清后订单方可生效',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey3),
+                style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey3),
               ),
             ],
           ),
@@ -243,6 +334,29 @@ class _EscrowCreatePageState extends State<EscrowCreatePage> {
             },
           ),
         ),
+        // Single deposit payer selector (ActionSheet style)
+        if (_depositMode == 0) ...[
+          _sectionDivider(),
+          GestureDetector(
+            onTap: _showDepositPayerSheet,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  const Icon(CupertinoIcons.person_crop_circle, size: 18, color: CupertinoColors.systemGrey2),
+                  const SizedBox(width: 8),
+                  Text(
+                    _depositPayer == 0 ? '单向上押·发起方' : '单向上押·接收方',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                  ),
+                  const Spacer(),
+                  const Icon(CupertinoIcons.chevron_down, size: 16, color: CupertinoColors.systemGrey3),
+                ],
+              ),
+            ),
+          ),
+        ],
         _sectionDivider(),
         // Payment method
         Padding(
@@ -300,11 +414,17 @@ class _EscrowCreatePageState extends State<EscrowCreatePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildDepositStatusRow('发起方', false),
-              if (_depositMode == 1) ...[
-                const SizedBox(height: 4),
+              if (_depositMode == 1 || _depositPayer == 0)
+                _buildDepositStatusRow('发起方', false),
+              if (_depositMode == 1 || _depositPayer == 1)
                 _buildDepositStatusRow('接收方', false),
-              ],
+              const SizedBox(height: 6),
+              Text(
+                _depositMode == 0
+                    ? (_depositPayer == 0 ? '发起方付清即可生效' : '接收方付清即可生效')
+                    : '双方付清后方可生效',
+                style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey3),
+              ),
             ],
           ),
         ),
@@ -321,6 +441,36 @@ class _EscrowCreatePageState extends State<EscrowCreatePage> {
         Text(paid ? '已付🟢' : '未付⚫',
             style: TextStyle(fontSize: 12, color: paid ? CupertinoColors.systemGreen : CupertinoColors.systemGrey2)),
       ],
+    );
+  }
+
+  void _showDepositPayerSheet() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('选择上押方'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              setState(() => _depositPayer = 0);
+            },
+            child: const Text('发起方上押'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              setState(() => _depositPayer = 1);
+            },
+            child: const Text('接收方上押'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('取消'),
+        ),
+      ),
     );
   }
 
@@ -782,6 +932,7 @@ class _EscrowCreatePageState extends State<EscrowCreatePage> {
   }
 
   void _showDatePicker() {
+    final now = DateTime.now();
     showCupertinoModalPopup(
       context: context,
       builder: (ctx) => Container(
@@ -801,11 +952,28 @@ class _EscrowCreatePageState extends State<EscrowCreatePage> {
                     onPressed: () => Navigator.of(ctx).pop(),
                     child: const Text('取消', style: TextStyle(fontSize: 17)),
                   ),
-                  const Text('选择交付日期', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                  const Text('选择交付时间', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
                   CupertinoButton(
                     padding: EdgeInsets.zero,
                     pressedOpacity: 0.5,
                     onPressed: () {
+                      final selected = DateTime(_selectedYear, _selectedMonth, _selectedDay, _selectedHour);
+                      if (selected.isBefore(now)) {
+                        showCupertinoDialog(
+                          context: ctx,
+                          builder: (dctx) => CupertinoAlertDialog(
+                            content: const Text('请选择明天及以后的日期和时间'),
+                            actions: [
+                              CupertinoDialogAction(
+                                isDefaultAction: true,
+                                onPressed: () => Navigator.of(dctx).pop(),
+                                child: const Text('确定'),
+                              ),
+                            ],
+                          ),
+                        );
+                        return;
+                      }
                       setState(() => _dateSelected = true);
                       Navigator.of(ctx).pop();
                     },
@@ -819,35 +987,50 @@ class _EscrowCreatePageState extends State<EscrowCreatePage> {
               child: Row(
                 children: [
                   Expanded(
+                    flex: 3,
                     child: CupertinoPicker(
-                      scrollController: FixedExtentScrollController(initialItem: _selectedYear - 2024),
+                      scrollController: FixedExtentScrollController(initialItem: _selectedYear - now.year),
                       itemExtent: 32,
-                      onSelectedItemChanged: (v) => setState(() => _selectedYear = 2024 + v),
+                      onSelectedItemChanged: (v) => setState(() => _selectedYear = now.year + v),
                       children: List.generate(
                         10,
-                        (i) => Center(child: Text('${2024 + i}年', style: const TextStyle(fontSize: 18))),
+                        (i) => Center(child: Text('${now.year + i}年', style: const TextStyle(fontSize: 17))),
                       ),
                     ),
                   ),
                   Expanded(
+                    flex: 2,
                     child: CupertinoPicker(
                       scrollController: FixedExtentScrollController(initialItem: _selectedMonth - 1),
                       itemExtent: 32,
                       onSelectedItemChanged: (v) => setState(() => _selectedMonth = v + 1),
                       children: List.generate(
                         12,
-                        (i) => Center(child: Text('${i + 1}月', style: const TextStyle(fontSize: 18))),
+                        (i) => Center(child: Text('${i + 1}月', style: const TextStyle(fontSize: 17))),
                       ),
                     ),
                   ),
                   Expanded(
+                    flex: 2,
                     child: CupertinoPicker(
                       scrollController: FixedExtentScrollController(initialItem: _selectedDay - 1),
                       itemExtent: 32,
                       onSelectedItemChanged: (v) => setState(() => _selectedDay = v + 1),
                       children: List.generate(
                         31,
-                        (i) => Center(child: Text('${i + 1}日', style: const TextStyle(fontSize: 18))),
+                        (i) => Center(child: Text('${i + 1}日', style: const TextStyle(fontSize: 17))),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: CupertinoPicker(
+                      scrollController: FixedExtentScrollController(initialItem: _selectedHour),
+                      itemExtent: 32,
+                      onSelectedItemChanged: (v) => setState(() => _selectedHour = v),
+                      children: List.generate(
+                        24,
+                        (i) => Center(child: Text('$i时', style: const TextStyle(fontSize: 17))),
                       ),
                     ),
                   ),
