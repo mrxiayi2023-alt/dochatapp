@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'mall_detail_page.dart';
+import '../services/verification_service.dart';
 
 // ---------------------------------------------------------------------------
 // Data Models
@@ -405,7 +406,11 @@ class _MallPageState extends State<MallPage> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: GestureDetector(
-                        onTap: () => _showBuySuccess(context, product),
+                        onTap: () => VerificationService.checkVerification(
+                          context,
+                          () => _showBuySuccess(context, product),
+                          message: '购买商品需要完成实名认证，请先进行认证。',
+                        ),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                           decoration: BoxDecoration(

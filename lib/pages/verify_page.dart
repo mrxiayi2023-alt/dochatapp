@@ -5,6 +5,7 @@
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/verification_service.dart';
 
 // ---------------------------------------------------------------------------
 // Verify status enum
@@ -27,8 +28,16 @@ class VerifyPage extends ConsumerStatefulWidget {
 class _VerifyPageState extends ConsumerState<VerifyPage> {
   final _nameController = TextEditingController();
   final _idCardController = TextEditingController();
-  VerifyStatus _status = VerifyStatus.unverified;
+  late VerifyStatus _status;
   bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _status = VerificationService.isVerified
+        ? VerifyStatus.verified
+        : VerifyStatus.unverified;
+  }
 
   @override
   void dispose() {
@@ -114,11 +123,14 @@ class _VerifyPageState extends ConsumerState<VerifyPage> {
       return;
     }
 
+    final isPending = _status == VerifyStatus.pending;
     showCupertinoDialog(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('确认提交'),
-        content: Text('姓名：$name\n身份证号：$idCard\n\n提交后将进入审核流程，请确认信息无误。'),
+        title: Text(isPending ? '提交审核' : '确认提交'),
+        content: Text(isPending
+            ? '姓名：$name\n身份证号：$idCard\n\n系统将模拟审核通过，确认提交？'
+            : '姓名：$name\n身份证号：$idCard\n\n提交后将进入审核流程，请确认信息无误。'),
         actions: [
           CupertinoDialogAction(
             isDefaultAction: true,
@@ -130,7 +142,7 @@ class _VerifyPageState extends ConsumerState<VerifyPage> {
               Navigator.of(ctx).pop();
               await _doSubmit();
             },
-            child: const Text('确认提交'),
+            child: Text(isPending ? '提交审核' : '确认提交'),
           ),
         ],
       ),
@@ -143,11 +155,21 @@ class _VerifyPageState extends ConsumerState<VerifyPage> {
       // Simulate network request delay
       await Future<void>.delayed(const Duration(seconds: 2));
       if (mounted) {
-        setState(() {
-          _status = VerifyStatus.pending;
-          _submitting = false;
-        });
-        _showToast('认证信息已提交，请等待审核');
+        if (_status == VerifyStatus.pending) {
+          // 审核通过，标记已认证
+          setState(() {
+            _status = VerifyStatus.verified;
+            _submitting = false;
+          });
+          VerificationService.isVerified = true;
+          _showToast('实名认证审核通过！');
+        } else {
+          setState(() {
+            _status = VerifyStatus.pending;
+            _submitting = false;
+          });
+          _showToast('认证信息已提交，请等待审核');
+        }
       }
     } catch (_) {
       if (mounted) {
@@ -155,6 +177,32 @@ class _VerifyPageState extends ConsumerState<VerifyPage> {
         _showToast('提交失败，请重试');
       }
     }
+  }
+
+  void _simulateApproval() {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('模拟审核'),
+        content: const Text('确认模拟审核通过？（正式上线前删除此功能）'),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          CupertinoDialogAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              setState(() => _status = VerifyStatus.verified);
+              VerificationService.isVerified = true;
+              _showToast('审核已通过（模拟）');
+            },
+            child: const Text('确认通过'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showToast(String message) {
@@ -253,6 +301,11 @@ class _VerifyPageState extends ConsumerState<VerifyPage> {
           SliverToBoxAdapter(
             child: _buildSubmitButton(isDark),
           ),
+          // 模拟审核通过按钮（正式上线前删除）
+          if (_status == VerifyStatus.pending)
+            SliverToBoxAdapter(
+              child: _buildSimulateApproveButton(),
+            ),
           // Bottom spacing
           const SliverToBoxAdapter(
             child: SizedBox(height: 40),
@@ -438,13 +491,41 @@ class _VerifyPageState extends ConsumerState<VerifyPage> {
             child: _submitting
                 ? const CupertinoActivityIndicator()
                 : Text(
-                    _status == VerifyStatus.verified ? '已完成认证' : '提交认证',
+                    _status == VerifyStatus.verified
+                        ? '已完成认证'
+                        : _status == VerifyStatus.pending
+                            ? '提交审核'
+                            : '提交认证',
                     style: TextStyle(
                       fontSize: 16,
                       color: canSubmit ? CupertinoColors.activeBlue : CupertinoColors.systemGrey2,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Simulate approve button (正式上线前删除)
+  // ---------------------------------------------------------------------------
+
+  /// 模拟审核通过按钮（正式上线前删除此方法）
+  Widget _buildSimulateApproveButton() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: CupertinoButton(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        pressedOpacity: 0.5,
+        onPressed: _simulateApproval,
+        child: const Text(
+          '模拟审核通过',
+          style: TextStyle(
+            fontSize: 14,
+            color: CupertinoColors.systemGrey,
+            fontWeight: FontWeight.w400,
           ),
         ),
       ),

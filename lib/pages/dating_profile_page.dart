@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'dating_page.dart';
+import '../services/verification_service.dart';
 
 class DatingProfilePage extends StatelessWidget {
   final DatingUser user;
@@ -132,18 +133,24 @@ class DatingProfilePage extends StatelessWidget {
         width: double.infinity,
         child: CupertinoButton(
           onPressed: () {
-            showCupertinoDialog(
-              context: context,
-              builder: (ctx) => CupertinoAlertDialog(
-                title: const Text('发送消息'),
-                content: Text('即将与${user.name}发起聊天'),
-                actions: [
-                  CupertinoDialogAction(
-                    child: const Text('确定'),
-                    onPressed: () => Navigator.of(ctx).pop(),
+            VerificationService.checkVerification(
+              context,
+              () {
+                showCupertinoDialog(
+                  context: context,
+                  builder: (ctx) => CupertinoAlertDialog(
+                    title: const Text('发送消息'),
+                    content: Text('即将与${user.name}发起聊天'),
+                    actions: [
+                      CupertinoDialogAction(
+                        child: const Text('确定'),
+                        onPressed: () => Navigator.of(ctx).pop(),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
+              message: '发送消息需要完成实名认证，请先进行认证。',
             );
           },
           borderRadius: const BorderRadius.all(Radius.circular(22)),

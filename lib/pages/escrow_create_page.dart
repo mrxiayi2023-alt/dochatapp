@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import '../services/verification_service.dart';
 
 class EscrowCreatePage extends StatefulWidget {
   const EscrowCreatePage({super.key});
@@ -33,6 +34,14 @@ class _EscrowCreatePageState extends State<EscrowCreatePage> {
 
   void _submit() {
     if (!_canSubmit) return;
+    VerificationService.checkVerification(
+      context,
+      () => _doSubmit(),
+      message: '发起担保需要完成实名认证，请先进行认证。',
+    );
+  }
+
+  void _doSubmit() {
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
     if (amount <= 0) {
       _showToast('请输入有效的担保金额');

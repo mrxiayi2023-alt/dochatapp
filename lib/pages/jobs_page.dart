@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'jobs_detail_page.dart';
+import '../services/verification_service.dart';
 
 class JobItem {
   final String name;
@@ -207,18 +208,24 @@ class _JobsPageState extends State<JobsPage> {
                 width: double.infinity,
                 child: CupertinoButton(
                   onPressed: () {
-                    showCupertinoDialog(
-                      context: context,
-                      builder: (ctx) => CupertinoAlertDialog(
-                        title: const Text('立即沟通'),
-                        content: Text('即将与${job.company}的HR发起聊天'),
-                        actions: [
-                          CupertinoDialogAction(
-                            child: const Text('确定'),
-                            onPressed: () => Navigator.of(ctx).pop(),
+                    VerificationService.checkVerification(
+                      context,
+                      () {
+                        showCupertinoDialog(
+                          context: context,
+                          builder: (ctx) => CupertinoAlertDialog(
+                            title: const Text('立即沟通'),
+                            content: Text('即将与${job.company}的HR发起聊天'),
+                            actions: [
+                              CupertinoDialogAction(
+                                child: const Text('确定'),
+                                onPressed: () => Navigator.of(ctx).pop(),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        );
+                      },
+                      message: '发布职位/沟通需要完成实名认证，请先进行认证。',
                     );
                   },
                   borderRadius: const BorderRadius.all(Radius.circular(18)),
