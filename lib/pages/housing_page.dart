@@ -3,7 +3,9 @@ import 'housing_detail_page.dart';
 import 'housing_publish_page.dart';
 import 'housing_map_page.dart';
 import 'housing_history_page.dart';
+import 'housing_favorites_page.dart';
 import '../services/housing_service.dart';
+import '../widgets/region_picker.dart';
 
 class HouseItem {
   final String title;
@@ -13,6 +15,9 @@ class HouseItem {
   final String layout;
   final String decoration;
   final String district;
+  final String province;
+  final String areaDistrict;
+  final String town;
   final String listingId;
   final String verificationStatus;
   final String publisherType;
@@ -26,6 +31,9 @@ class HouseItem {
     required this.layout,
     required this.decoration,
     required this.district,
+    required this.province,
+    required this.areaDistrict,
+    this.town = '',
     this.listingId = '',
     this.verificationStatus = 'verified',
     this.publisherType = '个人',
@@ -42,6 +50,9 @@ List<HouseItem> _toHouseItems(List<HousingListing> listings) {
     layout: l.layout,
     decoration: l.decoration,
     district: l.district,
+    province: l.province,
+    areaDistrict: l.area,
+    town: l.town,
     listingId: l.id,
     verificationStatus: l.verificationStatus,
     publisherType: l.publisherType,
@@ -57,25 +68,22 @@ class HousingPage extends StatefulWidget {
 
 class _HousingPageState extends State<HousingPage> {
   final _searchController = TextEditingController();
-  String _selectedDistrict = '全部';
+  RegionSelection? _selectedRegion;
   String _selectedDistance = '不限';
   String _selectedPrice = '不限';
   String _selectedLayout = '全部';
   bool _filterExpanded = false;
-  bool _favoritesOnly = false;
 
-  static const _districts = ['全部', '邗江区', '广陵区', '开发区', '江都区', '其他'];
   static const _distances = ['3km', '5km', '10km', '20km', '不限'];
   static const _prices = ['1000以下', '1000-2000', '2000-3000', '3000-5000', '5000以上', '不限'];
   static const _layouts = ['全部', '1室', '2室', '3室', '4室及以上'];
 
   String get _filterSummary {
     final parts = <String>[];
-    if (_selectedDistrict != '全部') parts.add(_selectedDistrict);
+    if (_selectedRegion != null) parts.add(_selectedRegion!.shortPath);
     if (_selectedDistance != '不限') parts.add(_selectedDistance);
     if (_selectedPrice != '不限') parts.add(_selectedPrice);
     if (_selectedLayout != '全部') parts.add(_selectedLayout);
-    if (_favoritesOnly) parts.add('仅收藏');
     return parts.isEmpty ? '全部' : parts.join('·');
   }
 
@@ -85,15 +93,8 @@ class _HousingPageState extends State<HousingPage> {
     if (query.isNotEmpty) {
       list = list.where((h) => h.title.contains(query) || h.area.contains(query)).toList();
     }
-    if (_favoritesOnly) {
-      list = list.where((h) => HousingService.isFavorite(h.listingId)).toList();
-    }
-    if (_selectedDistrict != '全部') {
-      if (_selectedDistrict == '其他') {
-        list = list.where((h) => !_districts.sublist(1, 5).contains(h.district)).toList();
-      } else {
-        list = list.where((h) => h.district == _selectedDistrict).toList();
-      }
+    if (_selectedRegion != null) {
+      list = list.where((h) => _selectedRegion!.matches(h.province, h.district, h.areaDistrict, h.town)).toList();
     }
     // Price filter
     if (_selectedPrice != '不限') {
@@ -161,6 +162,12 @@ class _HousingPageState extends State<HousingPage> {
     );
   }
 
+  void _showFavoritesPage() {
+    Navigator.of(context).push(
+      CupertinoPageRoute(builder: (_) => const HousingFavoritesPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
@@ -182,7 +189,14 @@ class _HousingPageState extends State<HousingPage> {
                         child: Icon(CupertinoIcons.clock, size: 22, color: CupertinoColors.black),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: _showFavoritesPage,
+                      child: const SizedBox(
+                        width: 36, height: 36,
+                        child: Icon(CupertinoIcons.heart, size: 22, color: CupertinoColors.destructiveRed),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
                     GestureDetector(
                       onTap: _showPublishPage,
                       child: Container(
@@ -280,39 +294,6 @@ class _HousingPageState extends State<HousingPage> {
             ],
           ),
         ),
-        // Favorites toggle
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              const Text('仅看收藏', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () => setState(() => _favoritesOnly = !_favoritesOnly),
-                child: Container(
-                  width: 42, height: 26,
-                  decoration: BoxDecoration(
-                    color: _favoritesOnly ? CupertinoColors.activeBlue : CupertinoColors.systemGrey5,
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: Stack(
-                    children: [
-                      AnimatedAlign(
-                        duration: const Duration(milliseconds: 150),
-                        alignment: _favoritesOnly ? Alignment.centerRight : Alignment.centerLeft,
-                        child: Container(
-                          width: 22, height: 22,
-                          margin: const EdgeInsets.all(2),
-                          decoration: const BoxDecoration(color: CupertinoColors.white, shape: BoxShape.circle),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
         const SizedBox(height: 6),
         AnimatedSize(
           duration: const Duration(milliseconds: 250),
@@ -321,7 +302,7 @@ class _HousingPageState extends State<HousingPage> {
           child: _filterExpanded
               ? Column(
                   children: [
-                    _buildChipRow('区域', _districts, _selectedDistrict, (v) => setState(() { _selectedDistrict = v; _filterExpanded = false; })),
+                    _buildRegionRow(),
                     const SizedBox(height: 8),
                     _buildChipRow('距离', _distances, _selectedDistance, (v) => setState(() { _selectedDistance = v; _filterExpanded = false; })),
                     const SizedBox(height: 8),
@@ -334,6 +315,70 @@ class _HousingPageState extends State<HousingPage> {
               : const SizedBox.shrink(),
         ),
       ],
+    );
+  }
+
+  Widget _buildRegionRow() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 4),
+      child: Row(
+        children: [
+          const Text('区域', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: CupertinoColors.systemGrey)),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () async {
+              final result = await RegionPicker.show(context, initial: _selectedRegion, maxDepth: 4);
+              if (result != null) {
+                setState(() { _selectedRegion = result; _filterExpanded = false; });
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: _selectedRegion != null ? CupertinoColors.activeBlue : CupertinoColors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _selectedRegion != null ? CupertinoColors.activeBlue : CupertinoColors.systemGrey4,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    CupertinoIcons.location_solid,
+                    size: 14,
+                    color: _selectedRegion != null ? CupertinoColors.white : CupertinoColors.systemGrey,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _selectedRegion?.shortPath ?? '选择区域',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: _selectedRegion != null ? CupertinoColors.white : CupertinoColors.black,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_selectedRegion != null) ...[
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: () => setState(() { _selectedRegion = null; }),
+              child: Container(
+                width: 22, height: 22,
+                decoration: const BoxDecoration(
+                  color: CupertinoColors.systemGrey4,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: const Icon(CupertinoIcons.xmark, size: 12, color: CupertinoColors.white),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

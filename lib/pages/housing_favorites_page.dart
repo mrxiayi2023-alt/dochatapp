@@ -3,24 +3,24 @@ import '../services/housing_service.dart';
 import 'housing_detail_page.dart';
 import 'housing_page.dart';
 
-class HousingHistoryPage extends StatefulWidget {
-  const HousingHistoryPage({super.key});
+class HousingFavoritesPage extends StatefulWidget {
+  const HousingFavoritesPage({super.key});
   @override
-  State<HousingHistoryPage> createState() => _HousingHistoryPageState();
+  State<HousingFavoritesPage> createState() => _HousingFavoritesPageState();
 }
 
-class _HousingHistoryPageState extends State<HousingHistoryPage> {
+class _HousingFavoritesPageState extends State<HousingFavoritesPage> {
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('浏览历史'),
+        middle: const Text('我的收藏'),
         trailing: ValueListenableBuilder<int>(
           valueListenable: HousingService.changeNotifier,
           builder: (context, _, _) {
-            final history = HousingService.browseHistoryList;
-            if (history.isEmpty) return const SizedBox.shrink();
+            final favList = _favoriteListings;
+            if (favList.isEmpty) return const SizedBox.shrink();
             return CupertinoButton(
               padding: EdgeInsets.zero,
               onPressed: _showClearConfirm,
@@ -33,12 +33,12 @@ class _HousingHistoryPageState extends State<HousingHistoryPage> {
         child: ValueListenableBuilder<int>(
           valueListenable: HousingService.changeNotifier,
           builder: (context, _, _) {
-            final history = HousingService.browseHistoryList;
-            if (history.isEmpty) return _buildEmptyState();
+            final favList = _favoriteListings;
+            if (favList.isEmpty) return _buildEmptyState();
             return ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: history.length,
-              itemBuilder: (context, index) => _buildHistoryCard(history[index]),
+              itemCount: favList.length,
+              itemBuilder: (context, index) => _buildFavCard(favList[index]),
             );
           },
         ),
@@ -46,22 +46,28 @@ class _HousingHistoryPageState extends State<HousingHistoryPage> {
     );
   }
 
+  List<HousingListing> get _favoriteListings {
+    return HousingService.listings
+        .where((l) => HousingService.isFavorite(l.id))
+        .toList();
+  }
+
   Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(CupertinoIcons.clock, size: 56, color: CupertinoColors.systemGrey3),
+          const Icon(CupertinoIcons.heart, size: 56, color: CupertinoColors.systemGrey3),
           const SizedBox(height: 12),
-          const Text('暂无浏览记录', style: TextStyle(fontSize: 16, color: CupertinoColors.systemGrey)),
+          const Text('暂无收藏房源', style: TextStyle(fontSize: 16, color: CupertinoColors.systemGrey)),
           const SizedBox(height: 8),
-          const Text('浏览过的房源会出现在这里', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey3)),
+          const Text('点击房源卡片右侧❤️即可收藏', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey3)),
         ],
       ),
     );
   }
 
-  Widget _buildHistoryCard(HousingListing listing) {
+  Widget _buildFavCard(HousingListing listing) {
     final house = HouseItem(
       title: listing.title,
       area: listing.district,
@@ -77,10 +83,10 @@ class _HousingHistoryPageState extends State<HousingHistoryPage> {
     );
 
     return Dismissible(
-      key: Key(listing.id),
+      key: Key('fav_${listing.id}'),
       direction: DismissDirection.endToStart,
       confirmDismiss: (_) async {
-        HousingService.removeFromHistory(listing.id);
+        HousingService.toggleFavorite(listing.id);
         return false;
       },
       background: Container(
@@ -91,7 +97,7 @@ class _HousingHistoryPageState extends State<HousingHistoryPage> {
           color: CupertinoColors.destructiveRed,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Icon(CupertinoIcons.delete, color: CupertinoColors.white, size: 24),
+        child: const Icon(CupertinoIcons.heart_slash, size: 24, color: CupertinoColors.white),
       ),
       child: GestureDetector(
         onTap: () {
@@ -151,11 +157,16 @@ class _HousingHistoryPageState extends State<HousingHistoryPage> {
     showCupertinoDialog(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('清空历史'),
-        content: const Text('确定要清空所有浏览记录吗？'),
+        title: const Text('清空收藏'),
+        content: const Text('确定要取消所有收藏吗？'),
         actions: [
           CupertinoDialogAction(isDefaultAction: true, onPressed: () => Navigator.of(ctx).pop(), child: const Text('取消')),
-          CupertinoDialogAction(isDestructiveAction: true, onPressed: () { HousingService.clearHistory(); Navigator.of(ctx).pop(); }, child: const Text('清空')),
+          CupertinoDialogAction(isDestructiveAction: true, onPressed: () {
+            for (final id in HousingService.favoriteIds.toList()) {
+              HousingService.toggleFavorite(id);
+            }
+            Navigator.of(ctx).pop();
+          }, child: const Text('清空')),
         ],
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import '../services/housing_service.dart';
 import '../services/verification_service.dart';
+import '../widgets/region_picker.dart';
 
 class HousingPublishPage extends StatefulWidget {
   const HousingPublishPage({super.key});
@@ -13,7 +14,7 @@ class _HousingPublishPageState extends State<HousingPublishPage> {
   String _publisherType = '个人';
   final _titleController = TextEditingController();
   final _companyController = TextEditingController();
-  String _district = '邗江区';
+  RegionSelection? _selectedRegion;
   String _layout = '1室1厅';
   final _sizeController = TextEditingController();
   final _floorController = TextEditingController();
@@ -25,7 +26,6 @@ class _HousingPublishPageState extends State<HousingPublishPage> {
 
   static const _propertyTypes = ['住宅', '商铺', '写字楼'];
   static const _publisherTypes = ['个人', '中介'];
-  static const _districts = ['邗江区', '广陵区', '开发区', '江都区', '仪征市', '高邮市', '宝应县', '其他'];
   static const _layouts = ['1室1厅', '2室1厅', '2室2厅', '3室1厅', '3室2厅', '4室2厅'];
   static const _decorations = ['毛坯', '简装', '精装', '豪装'];
 
@@ -68,7 +68,7 @@ class _HousingPublishPageState extends State<HousingPublishPage> {
               _buildTextField(_titleController, '请输入小区名称'),
               const SizedBox(height: 16),
               _buildSectionTitle('所在区域'),
-              _buildDistrictRow(),
+              _buildRegionRow(),
               const SizedBox(height: 16),
               _buildSectionTitle('户型'),
               _buildPickerRow('选择户型', _layouts, _layout, (v) => setState(() => _layout = v)),
@@ -190,9 +190,14 @@ class _HousingPublishPageState extends State<HousingPublishPage> {
     );
   }
 
-  Widget _buildDistrictRow() {
+  Widget _buildRegionRow() {
     return GestureDetector(
-      onTap: _showDistrictSheet,
+      onTap: () async {
+        final result = await RegionPicker.show(context, initial: _selectedRegion, maxDepth: 4);
+        if (result != null) {
+          setState(() => _selectedRegion = result);
+        }
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
@@ -202,33 +207,17 @@ class _HousingPublishPageState extends State<HousingPublishPage> {
         ),
         child: Row(
           children: [
-            Expanded(child: Text(_district, style: const TextStyle(fontSize: 15))),
+            Expanded(
+              child: Text(
+                _selectedRegion?.displayPath ?? '请选择省市区',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: _selectedRegion != null ? CupertinoColors.black : CupertinoColors.systemGrey,
+                ),
+              ),
+            ),
             const Icon(CupertinoIcons.chevron_down, size: 16, color: CupertinoColors.systemGrey3),
           ],
-        ),
-      ),
-    );
-  }
-
-  void _showDistrictSheet() {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (ctx) => CupertinoActionSheet(
-        title: const Text('选择区域'),
-        actions: _districts.map((d) => CupertinoActionSheetAction(
-          onPressed: () {
-            setState(() => _district = d);
-            Navigator.of(ctx).pop();
-          },
-          child: Text(d, style: TextStyle(
-            fontWeight: _district == d ? FontWeight.w700 : FontWeight.w400,
-            color: _district == d ? CupertinoColors.activeBlue : CupertinoColors.black,
-          )),
-        )).toList(),
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          onPressed: () => Navigator.of(ctx).pop(),
-          child: const Text('取消'),
         ),
       ),
     );
@@ -356,6 +345,10 @@ class _HousingPublishPageState extends State<HousingPublishPage> {
       _showAlert('请填写小区名称');
       return;
     }
+    if (_selectedRegion == null) {
+      _showAlert('请选择所在区域');
+      return;
+    }
     if (_priceController.text.trim().isEmpty) {
       _showAlert('请填写租金/售价');
       return;
@@ -379,7 +372,10 @@ class _HousingPublishPageState extends State<HousingPublishPage> {
       id: 'H${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}',
       title: _titleController.text.trim(),
       propertyType: _propertyType,
-      district: _district,
+      province: _selectedRegion?.province ?? '',
+      district: _selectedRegion?.city ?? '',
+      area: _selectedRegion?.district ?? '',
+      town: _selectedRegion?.town ?? '',
       layout: _layout,
       size: size,
       floor: _floorController.text.trim().isNotEmpty ? _floorController.text.trim() : '待填写',

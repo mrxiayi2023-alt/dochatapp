@@ -149,6 +149,8 @@ class _HousingMapPageState extends State<HousingMapPage> {
       layout: listing.layout,
       decoration: listing.decoration,
       district: listing.district,
+      province: listing.province,
+      areaDistrict: listing.area,
     );
     final isPending = listing.verificationStatus == 'pending';
 

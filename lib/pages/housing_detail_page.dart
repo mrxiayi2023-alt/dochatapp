@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import '../services/housing_service.dart';
 import 'housing_page.dart';
 
 class HousingDetailPage extends StatelessWidget {
@@ -11,6 +12,20 @@ class HousingDetailPage extends StatelessWidget {
       backgroundColor: const Color(0xFFF2F2F7),
       navigationBar: CupertinoNavigationBar(
         middle: Text(house.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+        trailing: ValueListenableBuilder<int>(
+          valueListenable: HousingService.changeNotifier,
+          builder: (context, _, _) {
+            final isFav = HousingService.isFavorite(house.listingId);
+            return GestureDetector(
+              onTap: () => HousingService.toggleFavorite(house.listingId),
+              child: Icon(
+                isFav ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                size: 24,
+                color: isFav ? CupertinoColors.destructiveRed : CupertinoColors.systemGrey3,
+              ),
+            );
+          },
+        ),
       ),
       child: SafeArea(
         child: SingleChildScrollView(
