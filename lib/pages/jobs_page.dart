@@ -1,8 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'jobs_detail_page.dart';
+import 'jobs_my_page.dart';
 import '../services/verification_service.dart';
 
 class JobItem {
+  final String id;
   final String name;
   final String salary;
   final String company;
@@ -12,6 +14,7 @@ class JobItem {
   final String description;
 
   const JobItem({
+    required this.id,
     required this.name,
     required this.salary,
     required this.company,
@@ -22,13 +25,13 @@ class JobItem {
   });
 }
 
-const _demoJobs = [
-  JobItem(name: '前端开发工程师', salary: '15-25K', company: '智云科技', location: '扬州市', experience: '3-5年', education: '本科', description: '负责公司Web前端产品的设计与开发。精通HTML/CSS/JavaScript，熟悉React或Vue框架，有移动端开发经验者优先。'),
-  JobItem(name: 'Java后端开发', salary: '18-30K', company: '星辰软件', location: '扬州市', experience: '5-10年', education: '本科', description: '负责后端服务架构设计与核心模块开发。精通Java/Spring Boot，熟悉微服务架构，有高并发系统开发经验。'),
-  JobItem(name: 'UI设计师', salary: '12-20K', company: '设计工坊', location: '扬州市', experience: '1-3年', education: '大专', description: '负责移动端和Web端产品的UI设计。精通Figma/Sketch，有良好的视觉设计感和用户体验思维。'),
-  JobItem(name: '产品经理', salary: '20-35K', company: '未来科技', location: '扬州市', experience: '3-5年', education: '本科', description: '负责产品规划、需求分析与项目管理。具备出色的逻辑思维和沟通能力，有B端产品经验者优先。'),
-  JobItem(name: '测试工程师', salary: '10-18K', company: '云测技术', location: '扬州市', experience: '1-3年', education: '大专', description: '负责软件产品的功能测试和自动化测试。熟悉测试流程和方法论，有自动化测试框架使用经验。'),
-  JobItem(name: '运维工程师', salary: '15-22K', company: '智云科技', location: '扬州市', experience: '3-5年', education: '本科', description: '负责线上服务的运维保障和自动化运维平台建设。熟悉Linux系统，掌握Docker/K8s等容器技术。'),
+const demoJobs = [
+  JobItem(id: 'J001', name: '前端开发工程师', salary: '15-25K', company: '智云科技', location: '扬州市', experience: '3-5年', education: '本科', description: '负责公司Web前端产品的设计与开发。精通HTML/CSS/JavaScript，熟悉React或Vue框架，有移动端开发经验者优先。'),
+  JobItem(id: 'J002', name: 'Java后端开发', salary: '18-30K', company: '星辰软件', location: '扬州市', experience: '5-10年', education: '本科', description: '负责后端服务架构设计与核心模块开发。精通Java/Spring Boot，熟悉微服务架构，有高并发系统开发经验。'),
+  JobItem(id: 'J003', name: 'UI设计师', salary: '12-20K', company: '设计工坊', location: '扬州市', experience: '1-3年', education: '大专', description: '负责移动端和Web端产品的UI设计。精通Figma/Sketch，有良好的视觉设计感和用户体验思维。'),
+  JobItem(id: 'J004', name: '产品经理', salary: '20-35K', company: '未来科技', location: '扬州市', experience: '3-5年', education: '本科', description: '负责产品规划、需求分析与项目管理。具备出色的逻辑思维和沟通能力，有B端产品经验者优先。'),
+  JobItem(id: 'J005', name: '测试工程师', salary: '10-18K', company: '云测技术', location: '扬州市', experience: '1-3年', education: '大专', description: '负责软件产品的功能测试和自动化测试。熟悉测试流程和方法论，有自动化测试框架使用经验。'),
+  JobItem(id: 'J006', name: '运维工程师', salary: '15-22K', company: '智云科技', location: '扬州市', experience: '3-5年', education: '本科', description: '负责线上服务的运维保障和自动化运维平台建设。熟悉Linux系统，掌握Docker/K8s等容器技术。'),
 ];
 
 class JobsPage extends StatefulWidget {
@@ -37,20 +40,32 @@ class JobsPage extends StatefulWidget {
   State<JobsPage> createState() => _JobsPageState();
 }
 
+// Shared favorites state (accessible from JobsMyPage)
+final _jobFavIds = <String>{};
+Set<String> get jobFavIds => _jobFavIds;
+
 class _JobsPageState extends State<JobsPage> {
   final _searchController = TextEditingController();
   String _selectedSalary = '';
   String _selectedExp = '';
   String _selectedEdu = '';
 
+  bool _isFav(String id) => _jobFavIds.contains(id);
+
+  void _toggleFav(String id) => setState(() {
+    if (_jobFavIds.contains(id)) { _jobFavIds.remove(id); } else { _jobFavIds.add(id); }
+  });
+
   List<JobItem> get _filtered {
-    var list = _demoJobs;
+    var list = demoJobs;
     final query = _searchController.text.trim();
     if (query.isNotEmpty) {
       list = list.where((j) => j.name.contains(query) || j.company.contains(query)).toList();
     }
     return list;
   }
+
+  List<JobItem> get favorites => demoJobs.where((j) => _jobFavIds.contains(j.id)).toList();
 
   @override
   void dispose() {
@@ -66,6 +81,18 @@ class _JobsPageState extends State<JobsPage> {
         slivers: [
           CupertinoSliverNavigationBar(
             largeTitle: const Text('电波直聘'),
+            trailing: GestureDetector(
+              onTap: () => _showIdentitySheet(context),
+              child: Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemGrey5,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(CupertinoIcons.person_fill, size: 20, color: CupertinoColors.black),
+              ),
+            ),
           ),
           SliverToBoxAdapter(child: _buildSearchBar()),
           SliverToBoxAdapter(child: _buildFilterBar()),
@@ -77,6 +104,54 @@ class _JobsPageState extends State<JobsPage> {
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
         ],
+      ),
+    );
+  }
+
+  void _showIdentitySheet(BuildContext context) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('选择身份'),
+        message: const Text('请选择您的用户身份'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).push(
+                CupertinoPageRoute(builder: (_) => const JobsMyPage(identity: 'personal')),
+              );
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(CupertinoIcons.person, size: 20, color: CupertinoColors.activeBlue),
+                SizedBox(width: 8),
+                Text('个人用户', style: TextStyle(fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).push(
+                CupertinoPageRoute(builder: (_) => const JobsMyPage(identity: 'company')),
+              );
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(CupertinoIcons.building_2_fill, size: 20, color: CupertinoColors.systemTeal),
+                SizedBox(width: 8),
+                Text('企业用户', style: TextStyle(fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('取消'),
+        ),
       ),
     );
   }
@@ -204,36 +279,56 @@ class _JobsPageState extends State<JobsPage> {
                 ],
               ),
               const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: CupertinoButton(
-                  onPressed: () {
-                    VerificationService.checkVerification(
-                      context,
-                      () {
-                        showCupertinoDialog(
-                          context: context,
-                          builder: (ctx) => CupertinoAlertDialog(
-                            title: const Text('立即沟通'),
-                            content: Text('即将与${job.company}的HR发起聊天'),
-                            actions: [
-                              CupertinoDialogAction(
-                                child: const Text('确定'),
-                                onPressed: () => Navigator.of(ctx).pop(),
+              Row(
+                children: [
+                  Expanded(
+                    child: CupertinoButton(
+                      onPressed: () {
+                        VerificationService.checkVerification(
+                          context,
+                          () {
+                            showCupertinoDialog(
+                              context: context,
+                              builder: (ctx) => CupertinoAlertDialog(
+                                title: const Text('立即沟通'),
+                                content: Text('即将与${job.company}的HR发起聊天'),
+                                actions: [
+                                  CupertinoDialogAction(
+                                    child: const Text('确定'),
+                                    onPressed: () => Navigator.of(ctx).pop(),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            );
+                          },
+                          message: '发布职位/沟通需要完成实名认证，请先进行认证。',
                         );
                       },
-                      message: '发布职位/沟通需要完成实名认证，请先进行认证。',
-                    );
-                  },
-                  borderRadius: const BorderRadius.all(Radius.circular(18)),
-                  color: CupertinoColors.activeBlue,
-                  pressedOpacity: 0.7,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: const Text('立即沟通', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
-                ),
+                      borderRadius: const BorderRadius.all(Radius.circular(18)),
+                      color: CupertinoColors.activeBlue,
+                      pressedOpacity: 0.7,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: const Text('立即沟通', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => _toggleFav(job.id),
+                    child: Container(
+                      width: 40, height: 40,
+                      decoration: BoxDecoration(
+                        color: CupertinoColors.systemGrey6,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        _isFav(job.id) ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                        size: 20,
+                        color: _isFav(job.id) ? CupertinoColors.destructiveRed : CupertinoColors.systemGrey3,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

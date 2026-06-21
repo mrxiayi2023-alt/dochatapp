@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'jobs_page.dart';
+import 'jobs_resume_page.dart';
+import '../services/verification_service.dart';
 
 class JobsDetailPage extends StatelessWidget {
   final JobItem job;
@@ -125,37 +127,116 @@ class JobsDetailPage extends StatelessWidget {
   Widget _buildApplyButton(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: SizedBox(
-        width: double.infinity,
-        child: CupertinoButton(
-          onPressed: () {
-            showCupertinoDialog(
-              context: context,
-              builder: (ctx) => CupertinoAlertDialog(
-                title: const Text('立即沟通'),
-                content: Text('即将与${job.company}的HR发起聊天'),
-                actions: [
-                  CupertinoDialogAction(
-                    child: const Text('确定'),
-                    onPressed: () => Navigator.of(ctx).pop(),
-                  ),
+      child: Column(
+        children: [
+          // 投递简历 button
+          SizedBox(
+            width: double.infinity,
+            child: CupertinoButton(
+              onPressed: () => _applyJob(context),
+              borderRadius: const BorderRadius.all(Radius.circular(22)),
+              color: CupertinoColors.activeBlue,
+              pressedOpacity: 0.7,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.paperplane_fill, size: 18, color: CupertinoColors.white),
+                  SizedBox(width: 6),
+                  Text('投递简历', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
                 ],
               ),
-            );
-          },
-          borderRadius: const BorderRadius.all(Radius.circular(22)),
-          color: CupertinoColors.activeBlue,
-          pressedOpacity: 0.7,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(CupertinoIcons.chat_bubble_fill, size: 18, color: CupertinoColors.white),
-              SizedBox(width: 6),
-              Text('立即沟通', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(height: 10),
+          // 立即沟通 button
+          SizedBox(
+            width: double.infinity,
+            child: CupertinoButton(
+              onPressed: () {
+                showCupertinoDialog(
+                  context: context,
+                  builder: (ctx) => CupertinoAlertDialog(
+                    title: const Text('立即沟通'),
+                    content: Text('即将与${job.company}的HR发起聊天'),
+                    actions: [
+                      CupertinoDialogAction(
+                        child: const Text('确定'),
+                        onPressed: () => Navigator.of(ctx).pop(),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              borderRadius: const BorderRadius.all(Radius.circular(22)),
+              color: CupertinoColors.systemGrey5,
+              pressedOpacity: 0.7,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.chat_bubble_fill, size: 18, color: CupertinoColors.activeBlue),
+                  SizedBox(width: 6),
+                  Text('立即沟通', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: CupertinoColors.activeBlue)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _applyJob(BuildContext context) {
+    VerificationService.checkVerification(
+      context,
+      () {
+        showCupertinoModalPopup(
+          context: context,
+          builder: (ctx) => CupertinoActionSheet(
+            title: const Text('投递简历'),
+            message: Text('确认使用您的简历投递${job.company}的「${job.name}」职位吗？'),
+            actions: [
+              CupertinoActionSheetAction(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  _submitApply(context);
+                },
+                child: const Text('投递简历'),
+              ),
+              CupertinoActionSheetAction(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).push(
+                    CupertinoPageRoute(builder: (_) => const JobsResumePage()),
+                  );
+                },
+                child: const Text('编辑简历'),
+              ),
+            ],
+            cancelButton: CupertinoActionSheetAction(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('取消'),
+            ),
+          ),
+        );
+      },
+      message: '投递简历需要完成实名认证，请先进行认证。',
+    );
+  }
+
+  void _submitApply(BuildContext context) {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('投递成功'),
+        content: Text('简历已成功投递至${job.company}。\n\nHR将会在1-3个工作日内查看您的简历。'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('确定'),
+          ),
+        ],
       ),
     );
   }

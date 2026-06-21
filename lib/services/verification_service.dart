@@ -5,6 +5,7 @@
 
 import 'package:flutter/cupertino.dart';
 import '../pages/verify_page.dart';
+import '../pages/jobs_company_verify_page.dart';
 
 // ---------------------------------------------------------------------------
 // Verification Service
@@ -14,8 +15,46 @@ import '../pages/verify_page.dart';
 class VerificationService {
   VerificationService._();
 
-  /// 当前认证状态：true=已认证，false=未认证
+  /// 当前实名认证状态：true=已认证，false=未认证
   static bool isVerified = false;
+
+  /// 企业认证状态：none / pending / verified
+  static String companyVerifyStatus = 'none';
+
+  /// 是否已通过企业认证
+  static bool get isCompanyVerified => companyVerifyStatus == 'verified';
+
+  /// 引导企业认证：已认证→执行回调；未认证→弹窗引导去认证
+  static void checkCompanyVerify(BuildContext context, VoidCallback onPassed) {
+    if (isCompanyVerified) {
+      onPassed();
+      return;
+    }
+
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('需要企业认证'),
+        content: const Text('发布职位需要企业认证，请先完成企业认证。'),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          CupertinoDialogAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).push(
+                CupertinoPageRoute(builder: (_) => const JobsCompanyVerifyPage()),
+              );
+            },
+            child: const Text('去认证'),
+          ),
+        ],
+      ),
+    );
+  }
 
   /// 检查实名认证状态，未认证则弹出提示对话框
   /// [onPassed] - 已认证时执行的回调
