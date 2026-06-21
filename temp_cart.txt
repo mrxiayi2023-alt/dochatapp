@@ -1,0 +1,9 @@
+import 'package:flutter/cupertino.dart';
+import 'mall_page.dart';
+import '../services/cart_service.dart';
+
+class MallCartPage extends StatefulWidget {
+  const MallCartPage({super.key});
+  @override
+  State<MallCartPage> createState() => _MallCartPageState();
+}

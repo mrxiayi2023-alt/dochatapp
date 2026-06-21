@@ -1,6 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'mall_detail_page.dart';
+import 'mall_cart_page.dart';
+import 'mall_order_list_page.dart';
 import '../services/verification_service.dart';
+import '../services/cart_service.dart';
 
 // ---------------------------------------------------------------------------
 // Data Models
@@ -17,6 +20,7 @@ class MallProduct {
   final String seller;
   final int reputation;
   final String description;
+  final double distance;
 
   const MallProduct({
     required this.name,
@@ -29,6 +33,7 @@ class MallProduct {
     required this.seller,
     required this.reputation,
     required this.description,
+    required this.distance,
   });
 }
 
@@ -45,6 +50,7 @@ const List<MallProduct> _allProducts = [
     seller: '小王',
     reputation: 95,
     description: '九成新手机壳，适配iPhone 15 Pro，手感舒适，保护到位。闲置转让，价格实惠。',
+    distance: 3.2,
   ),
   MallProduct(
     name: '耳机',
@@ -57,6 +63,7 @@ const List<MallProduct> _allProducts = [
     seller: '小李',
     reputation: 98,
     description: '品牌蓝牙耳机，音质出色，续航持久。使用不到半年，因升级设备闲置出售。',
+    distance: 1.5,
   ),
   MallProduct(
     name: '机械键盘',
@@ -69,6 +76,7 @@ const List<MallProduct> _allProducts = [
     seller: '小张',
     reputation: 92,
     description: '青轴机械键盘，段落感强，码字游戏皆宜。87键紧凑布局，成色良好。',
+    distance: 5.8,
   ),
 
   // ---- 农副产品 ----
@@ -83,6 +91,7 @@ const List<MallProduct> _allProducts = [
     seller: '果农老赵',
     reputation: 99,
     description: '自家果园种植的红富士苹果，脆甜多汁，不打蜡不催熟。现摘现发，新鲜直达。',
+    distance: 12.3,
   ),
   MallProduct(
     name: '东北大米',
@@ -95,6 +104,7 @@ const List<MallProduct> _allProducts = [
     seller: '米农老钱',
     reputation: 97,
     description: '东北黑土地种植，颗粒饱满，饭香浓郁。5kg真空包装，品质保证。',
+    distance: 45.6,
   ),
   MallProduct(
     name: '土蜂蜜',
@@ -107,6 +117,7 @@ const List<MallProduct> _allProducts = [
     seller: '蜂农老孙',
     reputation: 96,
     description: '深山土蜂蜜，纯天然零添加。百花酿制，口感醇厚，营养丰富。500g装。',
+    distance: 28.7,
   ),
 
   // ---- 工厂直销 ----
@@ -121,6 +132,7 @@ const List<MallProduct> _allProducts = [
     seller: '家纺工厂',
     reputation: 94,
     description: '纯棉四件套，亲肤柔软，不起球不褪色。被套+床单+2枕套，多色可选。',
+    distance: 8.9,
   ),
   MallProduct(
     name: '保温杯',
@@ -133,6 +145,7 @@ const List<MallProduct> _allProducts = [
     seller: '杯具工厂',
     reputation: 93,
     description: '316不锈钢保温杯，12小时保温。500ml大容量，防漏设计，适合办公出行。',
+    distance: 15.4,
   ),
   MallProduct(
     name: '拖鞋',
@@ -145,6 +158,7 @@ const List<MallProduct> _allProducts = [
     seller: '鞋履工厂',
     reputation: 91,
     description: 'EVA防滑拖鞋，轻便舒适，耐磨耐穿。居家浴室两用，多色多码可选。',
+    distance: 22.1,
   ),
 ];
 
@@ -211,6 +225,58 @@ class _MallPageState extends State<MallPage> {
     );
   }
 
+  Color _reputationColor(int reputation) {
+    if (reputation >= 95) return const Color(0xFFD4A017); // gold
+    if (reputation >= 85) return const Color(0xFFA8A8A8); // silver
+    if (reputation >= 70) return const Color(0xFFCD7F32); // bronze
+    if (reputation >= 60) return CupertinoColors.systemGrey;
+    return CupertinoColors.destructiveRed;
+  }
+
+  String _reputationTier(int reputation) {
+    if (reputation >= 95) return '金牌';
+    if (reputation >= 85) return '银牌';
+    if (reputation >= 70) return '铜牌';
+    if (reputation >= 60) return '待改进';
+    return '高风险';
+  }
+
+  void _showCartPage() {
+    Navigator.of(context).push(
+      CupertinoPageRoute(builder: (_) => const MallCartPage()),
+    );
+  }
+
+  void _showOrderListPage() {
+    Navigator.of(context).push(
+      CupertinoPageRoute(builder: (_) => const MallOrderListPage()),
+    );
+  }
+
+  void _showAddToCartSuccess(MallProduct product) {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('已加入购物车'),
+        content: Text('「${product.name}」已加入购物车'),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('继续逛'),
+          ),
+          CupertinoDialogAction(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _showCartPage();
+            },
+            child: const Text('去购物车'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
@@ -219,6 +285,59 @@ class _MallPageState extends State<MallPage> {
         slivers: [
           CupertinoSliverNavigationBar(
             largeTitle: const Text('电波商城'),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: _showOrderListPage,
+                  child: const SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Icon(CupertinoIcons.doc_text, size: 22, color: CupertinoColors.black),
+                  ),
+                ),
+                ValueListenableBuilder<int>(
+                  valueListenable: CartService.changeNotifier,
+                  builder: (context, count, _) {
+                    return GestureDetector(
+                      onTap: _showCartPage,
+                      child: SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            const Icon(CupertinoIcons.cart, size: 24, color: CupertinoColors.black),
+                            if (count > 0)
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: CupertinoColors.destructiveRed,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    count > 99 ? '99+' : '$count',
+                                    style: const TextStyle(
+                                      color: CupertinoColors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
           SliverToBoxAdapter(child: _buildSearchBar()),
           SliverToBoxAdapter(child: _buildTabBar()),
@@ -349,6 +468,9 @@ class _MallPageState extends State<MallPage> {
   }
 
   Widget _buildProductCard(MallProduct product) {
+    final isSecondHand = product.tab == '闲置二手';
+    final repColor = _reputationColor(product.reputation);
+
     return GestureDetector(
       onTap: () => Navigator.of(context).push(
         CupertinoPageRoute(builder: (_) => MallDetailPage(product: product)),
@@ -401,32 +523,91 @@ class _MallPageState extends State<MallPage> {
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Text(product.seller, style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey)),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(product.seller, style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey)),
+                        ),
+                        Text(
+                          '距你${product.distance}km',
+                          style: const TextStyle(fontSize: 10, color: CupertinoColors.systemGrey3),
+                        ),
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: repColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '⭐${product.reputation} ${_reputationTier(product.reputation)}',
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: repColor),
+                          ),
+                        ),
+                      ],
+                    ),
                     const Spacer(),
                     Align(
                       alignment: Alignment.centerRight,
-                      child: GestureDetector(
-                        onTap: () => VerificationService.checkVerification(
-                          context,
-                          () => _showBuySuccess(context, product),
-                          message: '购买商品需要完成实名认证，请先进行认证。',
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: CupertinoColors.activeBlue,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Text(
-                            '购买',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CupertinoColors.white),
-                          ),
-                        ),
-                      ),
+                      child: isSecondHand
+                          ? _buildBuyNowButton(product)
+                          : _buildAddToCartButton(product),
                     ),
                   ],
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBuyNowButton(MallProduct product) {
+    return GestureDetector(
+      onTap: () => VerificationService.checkVerification(
+        context,
+        () => _showBuySuccess(context, product),
+        message: '购买商品需要完成实名认证，请先进行认证。',
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: CupertinoColors.activeBlue,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Text(
+          '购买',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CupertinoColors.white),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddToCartButton(MallProduct product) {
+    return GestureDetector(
+      onTap: () => VerificationService.checkVerification(
+        context,
+        () {
+          CartService.addItem(product);
+          _showAddToCartSuccess(product);
+        },
+        message: '加入购物车需要完成实名认证，请先进行认证。',
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: CupertinoColors.systemOrange,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(CupertinoIcons.cart_fill, size: 12, color: CupertinoColors.white),
+            SizedBox(width: 4),
+            Text(
+              '加入购物车',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: CupertinoColors.white),
             ),
           ],
         ),
