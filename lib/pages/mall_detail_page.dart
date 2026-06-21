@@ -121,8 +121,12 @@ class _MallDetailPageState extends State<MallDetailPage> {
     final price = double.tryParse(product.price) ?? 0;
     final entry = CartEntry(product: product, quantity: 1);
     OrderService.placeOrder([entry], price);
-    setState(() {
-      _orderId = OrderService.orders.first.orderId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _orderId = OrderService.orders.first.orderId;
+        });
+      }
     });
     showCupertinoDialog(
       context: context,

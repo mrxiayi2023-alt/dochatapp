@@ -89,15 +89,15 @@ class OrderService {
     // Use a simple lookup with the same data
     if (_productCache.isEmpty) {
       final products = [
-        _makeProduct('手机壳', '15', '', '\u{1F4F1}', Color(0xFFE3F2FD), '闲置二手', '数码', '小王', 95, 3.2),
-        _makeProduct('耳机', '89', '', '\u{1F3A7}', Color(0xFFE8F5E9), '闲置二手', '数码', '小李', 98, 1.5),
-        _makeProduct('机械键盘', '120', '', '\u{2328}', Color(0xFFFFF3E0), '闲置二手', '数码', '小张', 92, 5.8),
-        _makeProduct('红富士苹果', '8', '/斤', '\u{1F34E}', Color(0xFFFFEBEE), '农副产品', '水果', '果农老赵', 99, 12.3),
-        _makeProduct('东北大米', '35', '/袋', '\u{1F33E}', Color(0xFFFFFDE7), '农副产品', '粮食', '米农老钱', 97, 45.6),
-        _makeProduct('土蜂蜜', '68', '/瓶', '\u{1F36F}', Color(0xFFF9FBE7), '农副产品', '特产', '蜂农老孙', 96, 28.7),
-        _makeProduct('家纺四件套', '89', '', '\u{1F6CF}', Color(0xFFEDE7F6), '工厂直销', '家纺', '家纺工厂', 94, 8.9),
-        _makeProduct('保温杯', '29', '', '\u{2615}', Color(0xFFE0F2F1), '工厂直销', '杯具', '杯具工厂', 93, 15.4),
-        _makeProduct('拖鞋', '15', '', '\u{1F45F}', Color(0xFFFCE4EC), '工厂直销', '鞋履', '鞋履工厂', 91, 22.1),
+        _makeProduct('手机壳', '15', '', '\u{1F4F1}', Color(0xFFE3F2FD), '闲置二手', '数码', '小王', 95, 1.5),
+        _makeProduct('耳机', '89', '', '\u{1F3A7}', Color(0xFFE8F5E9), '闲置二手', '数码', '小李', 98, 3.2),
+        _makeProduct('机械键盘', '120', '', '\u{2328}', Color(0xFFFFF3E0), '闲置二手', '数码', '小张', 92, 8.7),
+        _makeProduct('红富士苹果', '8', '/斤', '\u{1F34E}', Color(0xFFFFEBEE), '农副产品', '水果', '果农老赵', 99, 15),
+        _makeProduct('东北大米', '35', '/袋', '\u{1F33E}', Color(0xFFFFFDE7), '农副产品', '粮食', '米农老钱', 97, 45),
+        _makeProduct('土蜂蜜', '68', '/瓶', '\u{1F36F}', Color(0xFFF9FBE7), '农副产品', '特产', '蜂农老孙', 96, 120),
+        _makeProduct('家纺四件套', '89', '', '\u{1F6CF}', Color(0xFFEDE7F6), '工厂直销', '家纺', '家纺工厂', 94, 350),
+        _makeProduct('保温杯', '29', '', '\u{2615}', Color(0xFFE0F2F1), '工厂直销', '杯具', '杯具工厂', 93, 800),
+        _makeProduct('拖鞋', '15', '', '\u{1F45F}', Color(0xFFFCE4EC), '工厂直销', '鞋履', '鞋履工厂', 91, 1200),
       ];
       for (final p in products) { _productCache[p.name] = p; }
     }

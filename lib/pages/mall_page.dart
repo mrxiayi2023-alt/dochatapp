@@ -50,7 +50,7 @@ const List<MallProduct> _allProducts = [
     seller: '小王',
     reputation: 95,
     description: '九成新手机壳，适配iPhone 15 Pro，手感舒适，保护到位。闲置转让，价格实惠。',
-    distance: 3.2,
+    distance: 1.5,
   ),
   MallProduct(
     name: '耳机',
@@ -63,7 +63,7 @@ const List<MallProduct> _allProducts = [
     seller: '小李',
     reputation: 98,
     description: '品牌蓝牙耳机，音质出色，续航持久。使用不到半年，因升级设备闲置出售。',
-    distance: 1.5,
+    distance: 3.2,
   ),
   MallProduct(
     name: '机械键盘',
@@ -76,7 +76,7 @@ const List<MallProduct> _allProducts = [
     seller: '小张',
     reputation: 92,
     description: '青轴机械键盘，段落感强，码字游戏皆宜。87键紧凑布局，成色良好。',
-    distance: 5.8,
+    distance: 8.7,
   ),
 
   // ---- 农副产品 ----
@@ -91,7 +91,7 @@ const List<MallProduct> _allProducts = [
     seller: '果农老赵',
     reputation: 99,
     description: '自家果园种植的红富士苹果，脆甜多汁，不打蜡不催熟。现摘现发，新鲜直达。',
-    distance: 12.3,
+    distance: 15,
   ),
   MallProduct(
     name: '东北大米',
@@ -104,7 +104,7 @@ const List<MallProduct> _allProducts = [
     seller: '米农老钱',
     reputation: 97,
     description: '东北黑土地种植，颗粒饱满，饭香浓郁。5kg真空包装，品质保证。',
-    distance: 45.6,
+    distance: 45,
   ),
   MallProduct(
     name: '土蜂蜜',
@@ -117,7 +117,7 @@ const List<MallProduct> _allProducts = [
     seller: '蜂农老孙',
     reputation: 96,
     description: '深山土蜂蜜，纯天然零添加。百花酿制，口感醇厚，营养丰富。500g装。',
-    distance: 28.7,
+    distance: 120,
   ),
 
   // ---- 工厂直销 ----
@@ -132,7 +132,7 @@ const List<MallProduct> _allProducts = [
     seller: '家纺工厂',
     reputation: 94,
     description: '纯棉四件套，亲肤柔软，不起球不褪色。被套+床单+2枕套，多色可选。',
-    distance: 8.9,
+    distance: 350,
   ),
   MallProduct(
     name: '保温杯',
@@ -145,7 +145,7 @@ const List<MallProduct> _allProducts = [
     seller: '杯具工厂',
     reputation: 93,
     description: '316不锈钢保温杯，12小时保温。500ml大容量，防漏设计，适合办公出行。',
-    distance: 15.4,
+    distance: 800,
   ),
   MallProduct(
     name: '拖鞋',
@@ -158,7 +158,7 @@ const List<MallProduct> _allProducts = [
     seller: '鞋履工厂',
     reputation: 91,
     description: 'EVA防滑拖鞋，轻便舒适，耐磨耐穿。居家浴室两用，多色多码可选。',
-    distance: 22.1,
+    distance: 1200,
   ),
 ];
 
@@ -187,6 +187,21 @@ class _MallPageState extends State<MallPage> {
   final _searchController = TextEditingController();
   String _selectedTab = '闲置二手';
   String _selectedCategory = '全部';
+  String _selectedDistance = '全国';
+  String _selectedSort = '默认排序';
+  bool _filterExpanded = false;
+
+  static const _distanceOptions = ['10km内', '50km内', '100km内', '500km内', '全国'];
+  static const _distanceThresholds = [10, 50, 100, 500, double.infinity];
+  static const _sortOptions = ['默认排序', '价格从低到高', '价格从高到低'];
+
+  String get _filterSummary {
+    final parts = <String>[];
+    if (_selectedCategory != '全部') parts.add(_selectedCategory);
+    if (_selectedDistance != '全国') parts.add(_selectedDistance);
+    if (_selectedSort != '默认排序') parts.add(_selectedSort);
+    return parts.isEmpty ? '全部' : parts.join('·');
+  }
 
   List<MallProduct> get _filtered {
     var list = _allProducts.where((p) => p.tab == _selectedTab).toList();
@@ -198,6 +213,16 @@ class _MallPageState extends State<MallPage> {
     }
     if (_selectedCategory != '全部') {
       list = list.where((p) => p.category == _selectedCategory).toList();
+    }
+    final distIdx = _distanceOptions.indexOf(_selectedDistance);
+    if (distIdx >= 0) {
+      final threshold = _distanceThresholds[distIdx];
+      list = list.where((p) => p.distance <= threshold).toList();
+    }
+    if (_selectedSort == '价格从低到高') {
+      list.sort((a, b) => double.parse(a.price).compareTo(double.parse(b.price)));
+    } else if (_selectedSort == '价格从高到低') {
+      list.sort((a, b) => double.parse(b.price).compareTo(double.parse(a.price)));
     }
     return list;
   }
@@ -341,7 +366,7 @@ class _MallPageState extends State<MallPage> {
           ),
           SliverToBoxAdapter(child: _buildSearchBar()),
           SliverToBoxAdapter(child: _buildTabBar()),
-          SliverToBoxAdapter(child: _buildCategoryChips()),
+          SliverToBoxAdapter(child: _buildFilterSection()),
           _buildProductGrid(),
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
         ],
@@ -373,6 +398,9 @@ class _MallPageState extends State<MallPage> {
             setState(() {
               _selectedTab = value;
               _selectedCategory = '全部';
+              _selectedDistance = '全国';
+              _selectedSort = '默认排序';
+              _filterExpanded = false;
             });
           }
         },
@@ -392,44 +420,198 @@ class _MallPageState extends State<MallPage> {
     );
   }
 
-  Widget _buildCategoryChips() {
+  Widget _buildFilterSection() {
     final categories = _tabCategories[_selectedTab]!;
-    return SizedBox(
-      height: 40,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        children: categories.map((cat) {
-          final isSelected = cat == _selectedCategory;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () => setState(() => _selectedCategory = cat),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                decoration: BoxDecoration(
-                  color: isSelected ? CupertinoColors.activeBlue : CupertinoColors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isSelected
-                        ? CupertinoColors.activeBlue
-                        : CupertinoColors.systemGrey4,
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  cat,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: isSelected ? CupertinoColors.white : CupertinoColors.black,
-                  ),
+    return Column(
+      children: [
+        // ---- Expand button row ----
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: GestureDetector(
+            onTap: () => setState(() => _filterExpanded = !_filterExpanded),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: _filterExpanded ? CupertinoColors.activeBlue.withValues(alpha: 0.08) : CupertinoColors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _filterExpanded ? CupertinoColors.activeBlue : CupertinoColors.systemGrey4,
                 ),
               ),
+              child: Row(
+                children: [
+                  Icon(
+                    CupertinoIcons.line_horizontal_3_decrease,
+                    size: 16,
+                    color: _filterExpanded ? CupertinoColors.activeBlue : CupertinoColors.systemGrey,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '筛选',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _filterExpanded ? CupertinoColors.activeBlue : CupertinoColors.black),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _filterSummary,
+                      style: TextStyle(fontSize: 12, color: _filterExpanded ? CupertinoColors.activeBlue.withValues(alpha: 0.7) : CupertinoColors.systemGrey),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: _filterExpanded ? 0.5 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      CupertinoIcons.chevron_down,
+                      size: 14,
+                      color: _filterExpanded ? CupertinoColors.activeBlue : CupertinoColors.systemGrey,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          );
-        }).toList(),
-      ),
+          ),
+        ),
+        // ---- Expandable filter rows ----
+        AnimatedSize(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          alignment: Alignment.topCenter,
+          child: _filterExpanded
+              ? Column(
+                  children: [
+                    // Category row
+                    SizedBox(
+                      height: 40,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        children: categories.map((cat) {
+                          final isSelected = cat == _selectedCategory;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: GestureDetector(
+                              onTap: () => setState(() {
+                                _selectedCategory = cat;
+                                _filterExpanded = false;
+                              }),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? CupertinoColors.activeBlue : CupertinoColors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? CupertinoColors.activeBlue
+                                        : CupertinoColors.systemGrey4,
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  cat,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: isSelected ? CupertinoColors.white : CupertinoColors.black,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Distance row
+                    SizedBox(
+                      height: 40,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        children: _distanceOptions.map((opt) {
+                          final isSelected = opt == _selectedDistance;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: GestureDetector(
+                              onTap: () => setState(() {
+                                _selectedDistance = opt;
+                                _filterExpanded = false;
+                              }),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? CupertinoColors.activeBlue : CupertinoColors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? CupertinoColors.activeBlue
+                                        : CupertinoColors.systemGrey4,
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  opt,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: isSelected ? CupertinoColors.white : CupertinoColors.black,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Sort row
+                    SizedBox(
+                      height: 40,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        children: _sortOptions.map((opt) {
+                          final isSelected = opt == _selectedSort;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: GestureDetector(
+                              onTap: () => setState(() {
+                                _selectedSort = opt;
+                                _filterExpanded = false;
+                              }),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? CupertinoColors.activeBlue : CupertinoColors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? CupertinoColors.activeBlue
+                                        : CupertinoColors.systemGrey4,
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  opt,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: isSelected ? CupertinoColors.white : CupertinoColors.black,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
     );
   }
 
