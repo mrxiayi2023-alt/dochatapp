@@ -13,12 +13,23 @@ class _JobsCompanyVerifyPageState extends State<JobsCompanyVerifyPage> {
   final _licenseController = TextEditingController();
   final _legalPersonController = TextEditingController();
   RegionSelection? _selectedRegion;
+  String _scale = '20-99人';
+  String _industry = '互联网';
+  final _contactNameController = TextEditingController();
+  final _contactPhoneController = TextEditingController();
+  final _detailAddressController = TextEditingController();
+
+  static const _scales = ['1-20人', '20-99人', '100-499人', '500人以上'];
+  static const _industries = ['互联网', '金融', '教育', '医疗', '制造', '其他'];
 
   @override
   void dispose() {
     _nameController.dispose();
     _licenseController.dispose();
     _legalPersonController.dispose();
+    _contactNameController.dispose();
+    _contactPhoneController.dispose();
+    _detailAddressController.dispose();
     super.dispose();
   }
 
@@ -93,6 +104,21 @@ class _JobsCompanyVerifyPageState extends State<JobsCompanyVerifyPage> {
                 _buildSectionTitle('办公地址'),
                 _buildRegionRow(),
                 const SizedBox(height: 16),
+                _buildSectionTitle('详细地址'),
+                _buildTextField(_detailAddressController, '请输入详细地址（如XX路XX号XX栋XX室）'),
+                const SizedBox(height: 16),
+                _buildSectionTitle('企业规模'),
+                _buildSegmentedControl(_scales, _scale, (v) => setState(() => _scale = v)),
+                const SizedBox(height: 16),
+                _buildSectionTitle('所属行业'),
+                _buildSegmentedControl(_industries, _industry, (v) => setState(() => _industry = v)),
+                const SizedBox(height: 16),
+                _buildSectionTitle('联系人'),
+                _buildTextField(_contactNameController, '请输入联系人姓名'),
+                const SizedBox(height: 16),
+                _buildSectionTitle('联系电话'),
+                _buildTextField(_contactPhoneController, '请输入联系人手机号', keyboardType: TextInputType.phone),
+                const SizedBox(height: 16),
                 _buildSectionTitle('营业执照'),
                 _buildLicenseUpload(),
                 const SizedBox(height: 24),
@@ -130,7 +156,7 @@ class _JobsCompanyVerifyPageState extends State<JobsCompanyVerifyPage> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String placeholder) {
+  Widget _buildTextField(TextEditingController controller, String placeholder, {TextInputType keyboardType = TextInputType.text}) {
     return Container(
       decoration: BoxDecoration(
         color: CupertinoColors.white,
@@ -140,6 +166,7 @@ class _JobsCompanyVerifyPageState extends State<JobsCompanyVerifyPage> {
       child: CupertinoTextField(
         controller: controller,
         placeholder: placeholder,
+        keyboardType: keyboardType,
         padding: const EdgeInsets.all(14),
         style: const TextStyle(fontSize: 15),
       ),
@@ -175,6 +202,26 @@ class _JobsCompanyVerifyPageState extends State<JobsCompanyVerifyPage> {
             const Icon(CupertinoIcons.chevron_down, size: 16, color: CupertinoColors.systemGrey3),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSegmentedControl(List<String> options, String selected, ValueChanged<String> onChanged) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: CupertinoColors.systemGrey6,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: CupertinoSlidingSegmentedControl<String>(
+        groupValue: selected,
+        backgroundColor: CupertinoColors.systemGrey6,
+        thumbColor: CupertinoColors.white,
+        onValueChanged: (v) { if (v != null) onChanged(v); },
+        children: Map.fromEntries(options.map((o) => MapEntry(o, Padding(
+          padding: EdgeInsets.symmetric(horizontal: options.length > 4 ? 4.0 : 8.0, vertical: 10),
+          child: Text(o, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        )))),
       ),
     );
   }
@@ -221,8 +268,11 @@ class _JobsCompanyVerifyPageState extends State<JobsCompanyVerifyPage> {
 
   void _submitVerify() {
     if (_nameController.text.trim().isEmpty) { _showAlert('请填写企业名称'); return; }
-    if (_licenseController.text.trim().isEmpty) { _showAlert('请填写营业执照号'); return; }
+    if (_licenseController.text.trim().isEmpty) { _showAlert('请填写统一社会信用代码'); return; }
     if (_legalPersonController.text.trim().isEmpty) { _showAlert('请填写法人姓名'); return; }
+    if (_selectedRegion == null) { _showAlert('请选择办公地址'); return; }
+    if (_contactNameController.text.trim().isEmpty) { _showAlert('请填写联系人姓名'); return; }
+    if (_contactPhoneController.text.trim().isEmpty) { _showAlert('请填写联系人手机号'); return; }
 
     setState(() => VerificationService.companyVerifyStatus = 'pending');
 

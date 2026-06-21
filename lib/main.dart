@@ -23,6 +23,7 @@ import 'providers/theme_provider.dart';
 import 'services/auth_provider.dart';
 import 'services/websocket_service.dart';
 import 'services/api_service.dart';
+import 'services/jobs_badge_service.dart';
 
   /// 应用入口函数，初始化腾讯IM SDK并启动应用
 void main() {
@@ -131,6 +132,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   bool _wsConnected = false;
   String? _activeIncomingCallId;
   int _friendBadge = 0; // 好友申请角标数
+  int _jobsBadge = 0; // 直聘角标数
 
   @override
   /// 初始化状态，检查认证状态
@@ -138,10 +140,12 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     super.initState();
     // 监听全局待处理申请数变化
     FriendsPage.pendingRequestNotifier.addListener(_onFriendBadgeChanged);
+    JobsBadgeService.badgeNotifier.addListener(_onJobsBadgeChanged);
     // 首帧后尝试连接 WebSocket 并预加载角标
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _connectCallWs();
       _initFriendBadge();
+      JobsBadgeService.init();
     });
   }
 
@@ -149,6 +153,12 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   void _onFriendBadgeChanged() {
     if (mounted) {
       setState(() => _friendBadge = FriendsPage.pendingRequestNotifier.value);
+    }
+  }
+
+  void _onJobsBadgeChanged() {
+    if (mounted) {
+      setState(() => _jobsBadge = JobsBadgeService.badgeNotifier.value);
     }
   }
 
@@ -256,6 +266,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   /// 释放资源，取消WebSocket监听
   void dispose() {
     FriendsPage.pendingRequestNotifier.removeListener(_onFriendBadgeChanged);
+    JobsBadgeService.badgeNotifier.removeListener(_onJobsBadgeChanged);
     WebSocketService.shared.offCallStart(_onIncomingCall);
     WebSocketService.shared.offCallEnd(_onCallEndForIncoming);
     super.dispose();
@@ -277,8 +288,9 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       }
     });
 
-    // 动态构建底部导航栏项（好友Tab带角标）
+    // 动态构建底部导航栏项（好友Tab带角标，服务Tab带直聘角标）
     final badge = _friendBadge;
+    final jobsBadge = _jobsBadge;
     final items = <BottomNavigationBarItem>[
       const BottomNavigationBarItem(
         icon: Icon(CupertinoIcons.chat_bubble),
@@ -295,9 +307,9 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         activeIcon: Icon(CupertinoIcons.globe),
         label: '广场',
       ),
-      const BottomNavigationBarItem(
-        icon: Icon(CupertinoIcons.square_grid_2x2),
-        activeIcon: Icon(CupertinoIcons.square_grid_2x2_fill),
+      BottomNavigationBarItem(
+        icon: _buildTabIcon(CupertinoIcons.square_grid_2x2, jobsBadge),
+        activeIcon: _buildTabIcon(CupertinoIcons.square_grid_2x2_fill, jobsBadge),
         label: '服务',
       ),
       const BottomNavigationBarItem(

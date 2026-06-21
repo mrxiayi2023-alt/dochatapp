@@ -8,6 +8,9 @@ class InterviewEntry {
   String status; // pending / accepted / rejected
   final String contact;
   final String note;
+  final String address; // interview address
+  int rating; // 1-5 stars, 0 = not rated
+  String ratingComment;
 
   InterviewEntry({
     required this.id,
@@ -17,21 +20,24 @@ class InterviewEntry {
     this.status = 'pending',
     this.contact = '',
     this.note = '',
+    this.address = '',
+    this.rating = 0,
+    this.ratingComment = '',
   });
 }
 
 // Demo interviews for personal mode (received by applicant)
 List<InterviewEntry> _personalInterviews = [
-  InterviewEntry(id: 'I001', jobName: '前端开发工程师', counterparty: '智云科技', time: '2026-07-01 14:00', status: 'pending', contact: '张经理 13800001111', note: '请携带简历和作品集，提前10分钟到达会议室302。'),
-  InterviewEntry(id: 'I002', jobName: 'Java后端开发', counterparty: '星辰软件', time: '2026-07-03 10:00', status: 'accepted', contact: '李HR 13800002222', note: '线上面试，请提前下载腾讯会议并测试设备。'),
+  InterviewEntry(id: 'I001', jobName: '前端开发工程师', counterparty: '智云科技', time: '2026-07-01 14:00', status: 'pending', contact: '张经理 13800001111', note: '请携带简历和作品集，提前10分钟到达。', address: '扬州市邗江区文昌西路525号智云科技大厦A座302会议室'),
+  InterviewEntry(id: 'I002', jobName: 'Java后端开发', counterparty: '星辰软件', time: '2026-07-03 10:00', status: 'accepted', contact: '李HR 13800002222', note: '线上面试，请提前下载腾讯会议并测试设备。', address: '腾讯会议 ID: 123-456-789'),
   InterviewEntry(id: 'I003', jobName: '产品经理', counterparty: '未来科技', time: '2026-06-28 15:00', status: 'rejected'),
 ];
 
 // Demo interviews for company mode (sent by employer)
 List<InterviewEntry> _companyInterviews = [
-  InterviewEntry(id: 'C001', jobName: '前端开发工程师', counterparty: '李明', time: '2026-07-01 14:00', status: 'pending', contact: '李明 13900001111', note: '线下面试'),
-  InterviewEntry(id: 'C002', jobName: 'UI设计师', counterparty: '王芳', time: '2026-07-02 10:00', status: 'accepted', contact: '王芳 13900002222', note: '线上视频面试'),
-  InterviewEntry(id: 'C003', jobName: 'Java后端开发', counterparty: '赵强', time: '2026-06-30 15:00', status: 'pending', contact: '赵强 13900003333', note: '带作品演示'),
+  InterviewEntry(id: 'C001', jobName: '前端开发工程师', counterparty: '李明', time: '2026-07-01 14:00', status: 'pending', contact: '李明 13900001111', note: '线下面试', address: '扬州市邗江区文昌西路525号智云科技大厦A座302会议室'),
+  InterviewEntry(id: 'C002', jobName: 'UI设计师', counterparty: '王芳', time: '2026-07-02 10:00', status: 'accepted', contact: '王芳 13900002222', note: '线上视频面试', address: '腾讯会议 ID: 987-654-321'),
+  InterviewEntry(id: 'C003', jobName: 'Java后端开发', counterparty: '赵强', time: '2026-06-30 15:00', status: 'pending', contact: '赵强 13900003333', note: '带作品演示', address: '扬州市广陵区泰州路188号星辰软件3楼会议室'),
 ];
 
 class JobsInterviewPage extends StatefulWidget {
@@ -61,6 +67,69 @@ class _JobsInterviewPageState extends State<JobsInterviewPage> {
       final idx = source.indexWhere((e) => e.id == entry.id);
       if (idx != -1) source[idx].status = status;
     });
+  }
+
+  void _showRatingSheet(InterviewEntry entry) {
+    int tempRating = 0;
+    final commentCtrl = TextEditingController();
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => CupertinoActionSheet(
+          title: const Text('面试评价'),
+          message: const Text('请为本次面试体验打分'),
+          actions: [
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (i) => GestureDetector(
+                  onTap: () => setModalState(() => tempRating = i + 1),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Icon(
+                      i < tempRating ? CupertinoIcons.star_fill : CupertinoIcons.star,
+                      size: 36,
+                      color: CupertinoColors.systemYellow,
+                    ),
+                  ),
+                )),
+              ),
+            ),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey6,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: CupertinoTextField(
+                controller: commentCtrl,
+                placeholder: '写下您的评价...',
+                maxLines: 3,
+                padding: const EdgeInsets.all(12),
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () {
+                if (tempRating > 0) {
+                  setState(() {
+                    entry.rating = tempRating;
+                    entry.ratingComment = commentCtrl.text.trim();
+                  });
+                }
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('提交评价', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -176,7 +245,7 @@ class _JobsInterviewPageState extends State<JobsInterviewPage> {
               Text(entry.time, style: const TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
             ],
           ),
-          if (entry.status == 'accepted' && entry.contact.isNotEmpty) ...[
+          if (entry.status == 'accepted') ...[
             const SizedBox(height: 6),
             Container(
               padding: const EdgeInsets.all(10),
@@ -187,7 +256,12 @@ class _JobsInterviewPageState extends State<JobsInterviewPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('联系方式：${entry.contact}', style: const TextStyle(fontSize: 13)),
+                  if (entry.contact.isNotEmpty)
+                    Text('联系人：${entry.contact}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                  if (entry.address.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text('面试地址：${entry.address}', style: const TextStyle(fontSize: 13)),
+                  ],
                   if (entry.note.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text('备注：${entry.note}', style: const TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
@@ -195,6 +269,49 @@ class _JobsInterviewPageState extends State<JobsInterviewPage> {
                 ],
               ),
             ),
+          ],
+          if (entry.status == 'accepted') ...[
+            const SizedBox(height: 8),
+            // Rating section
+            if (entry.rating == 0)
+              GestureDetector(
+                onTap: () => _showRatingSheet(entry),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemYellow.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(CupertinoIcons.star, size: 16, color: CupertinoColors.systemYellow),
+                      SizedBox(width: 4),
+                      Text('评价面试', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CupertinoColors.systemYellow)),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemYellow.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    ...List.generate(5, (i) => Icon(
+                      i < entry.rating ? CupertinoIcons.star_fill : CupertinoIcons.star,
+                      size: 16, color: CupertinoColors.systemYellow,
+                    )),
+                    if (entry.ratingComment.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(entry.ratingComment, style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    ],
+                  ],
+                ),
+              ),
           ],
           if (entry.status == 'pending') ...[
             const SizedBox(height: 12),

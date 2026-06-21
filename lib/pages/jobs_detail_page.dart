@@ -1,7 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'jobs_page.dart';
 import 'jobs_resume_page.dart';
+import 'jobs_chat_page.dart';
 import '../services/verification_service.dart';
+import '../services/jobs_chat_service.dart';
 
 class JobsDetailPage extends StatelessWidget {
   final JobItem job;
@@ -154,18 +156,20 @@ class JobsDetailPage extends StatelessWidget {
             width: double.infinity,
             child: CupertinoButton(
               onPressed: () {
-                showCupertinoDialog(
-                  context: context,
-                  builder: (ctx) => CupertinoAlertDialog(
-                    title: const Text('立即沟通'),
-                    content: Text('即将与${job.company}的HR发起聊天'),
-                    actions: [
-                      CupertinoDialogAction(
-                        child: const Text('确定'),
-                        onPressed: () => Navigator.of(ctx).pop(),
-                      ),
-                    ],
-                  ),
+                VerificationService.checkVerification(
+                  context,
+                  () {
+                    final channelKey = JobsChatService.channelKey('personal', job.company);
+                    Navigator.of(context).push(
+                      CupertinoPageRoute(builder: (_) => JobsChatPage(
+                        channelKey: channelKey,
+                        title: job.company,
+                        myId: 'personal',
+                        peerName: job.company,
+                      )),
+                    );
+                  },
+                  message: '发起沟通需要完成实名认证，请先进行认证。',
                 );
               },
               borderRadius: const BorderRadius.all(Radius.circular(22)),
@@ -178,6 +182,66 @@ class JobsDetailPage extends StatelessWidget {
                   Icon(CupertinoIcons.chat_bubble_fill, size: 18, color: CupertinoColors.activeBlue),
                   SizedBox(width: 6),
                   Text('立即沟通', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: CupertinoColors.activeBlue)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // 申请面试 button
+          SizedBox(
+            width: double.infinity,
+            child: CupertinoButton(
+              onPressed: () {
+                VerificationService.checkVerification(
+                  context,
+                  () {
+                    showCupertinoDialog(
+                      context: context,
+                      builder: (ctx) => CupertinoAlertDialog(
+                        title: const Text('申请面试'),
+                        content: Text('确认向${job.company}申请「${job.name}」职位的面试吗？\n\n企业收到申请后将与您联系安排面试时间。'),
+                        actions: [
+                          CupertinoDialogAction(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: const Text('取消'),
+                          ),
+                          CupertinoDialogAction(
+                            isDefaultAction: true,
+                            onPressed: () {
+                              Navigator.of(ctx).pop();
+                              showCupertinoDialog(
+                                context: context,
+                                builder: (c) => CupertinoAlertDialog(
+                                  title: const Text('申请成功'),
+                                  content: const Text('面试申请已发送，请等待企业回复。\n\n您可以在"个人中心-面试通知"中查看进度。'),
+                                  actions: [
+                                    CupertinoDialogAction(
+                                      onPressed: () => Navigator.of(c).pop(),
+                                      child: const Text('确定'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                            child: const Text('确认申请'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  message: '申请面试需要完成实名认证，请先进行认证。',
+                );
+              },
+              borderRadius: const BorderRadius.all(Radius.circular(22)),
+              color: CupertinoColors.systemGreen,
+              pressedOpacity: 0.7,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.calendar_badge_plus, size: 18, color: CupertinoColors.white),
+                  SizedBox(width: 6),
+                  Text('申请面试', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
                 ],
               ),
             ),
