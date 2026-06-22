@@ -1,40 +1,53 @@
-package model
-
-// 电波灵动即时通讯系统 V1.0
-// 著作权人：江苏栩熙晨梦网络科技有限公司
-// 开发完成日期：2026年5月28日
-// 文件说明：房源租赁数据模型
+﻿package model
 
 import "time"
 
-// HousingListing represents a rental property listing.
+// 房源认证状态
+const (
+	HousingVerified = "verified"
+	HousingPending  = "pending"
+	HousingRejected = "rejected"
+)
+
+// 发布身份
+const (
+	PublisherPersonal = "个人"
+	PublisherAgent    = "中介"
+)
+
+// 物业类型
+const (
+	PropertyResidential = "住宅"
+	PropertyCommercial  = "商铺"
+	PropertyOffice      = "写字楼"
+)
+
+// HousingListing 房源信息表 — 与前端 HousingListing 模型完全对齐
 type HousingListing struct {
-	ID           string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	Title        string    `gorm:"type:varchar(200);not null" json:"title"`
-	Description  string    `gorm:"type:text" json:"description"`
-	Price        float64   `gorm:"type:decimal(10,2);not null" json:"price"`
-	Area         float64   `gorm:"type:decimal(8,2);default:0" json:"area"`
-	Address      string    `gorm:"type:varchar(300)" json:"address"`
-	City         string    `gorm:"type:varchar(50);index" json:"city"`
-	District     string    `gorm:"type:varchar(50);index" json:"district"`
-	Bedrooms     int       `gorm:"default:0" json:"bedrooms"`
-	LivingRooms  int       `gorm:"default:0" json:"living_rooms"`
-	Bathrooms    int       `gorm:"default:0" json:"bathrooms"`
-	Floor        int       `gorm:"default:0" json:"floor"`
-	TotalFloors  int       `gorm:"default:0" json:"total_floors"`
-	Orientation  string    `gorm:"type:varchar(20)" json:"orientation"`
-	Decoration   string    `gorm:"type:varchar(30)" json:"decoration"`
-	PropertyType string    `gorm:"type:varchar(30)" json:"property_type"`
-	Images       string    `gorm:"type:text" json:"images"`
-	ContactPhone string    `gorm:"type:varchar(20)" json:"contact_phone"`
-	ContactName  string    `gorm:"type:varchar(50)" json:"contact_name"`
-	PublisherID  string    `gorm:"type:uuid;not null;index" json:"publisher_id"`
-	Status       string    `gorm:"type:varchar(20);default:'published';index" json:"status"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID                 string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	PublisherID        string    `gorm:"type:uuid;not null;index" json:"publisher_id"`
+	Title              string    `gorm:"type:varchar(200);not null" json:"title"`
+	PropertyType       string    `gorm:"type:varchar(20);not null" json:"property_type"`           // 住宅/商铺/写字楼
+	Province           string    `gorm:"type:varchar(20);not null" json:"province"`                // 省
+	City               string    `gorm:"type:varchar(20);not null" json:"city"`                    // 市（前端字段 district）
+	District           string    `gorm:"type:varchar(20);not null" json:"district"`                // 区（前端字段 area）
+	Town               string    `gorm:"type:varchar(20);default:''" json:"town"`                  // 镇/街道
+	Layout             string    `gorm:"type:varchar(20);not null" json:"layout"`                  // 户型 e.g. "3室2厅"
+	Size               float64   `gorm:"not null" json:"size"`                                     // 面积 m²
+	Floor              string    `gorm:"type:varchar(20);not null" json:"floor"`                   // e.g. "8/18层"
+	Decoration         string    `gorm:"type:varchar(20);not null" json:"decoration"`              // 简装/精装/豪装
+	Price              float64   `gorm:"not null" json:"price"`                                    // 月租金
+	Description        string    `gorm:"type:text" json:"description"`
+	Contact            string    `gorm:"type:varchar(20);not null" json:"contact"`                 // 联系电话
+	VerificationStatus string    `gorm:"type:varchar(20);default:pending" json:"verification_status"`
+	Photos             string    `gorm:"type:text;default:'[]'" json:"photos"`                     // JSON 数组字符串
+	PublisherType      string    `gorm:"type:varchar(20);default:'个人'" json:"publisher_type"`
+	CompanyName        string    `gorm:"type:varchar(100);default:''" json:"company_name"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
-// HousingFavorite stores user-favorited listings.
+// HousingFavorite 收藏记录
 type HousingFavorite struct {
 	ID        string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	UserID    string    `gorm:"type:uuid;not null;uniqueIndex:idx_hf_user_listing" json:"user_id"`
@@ -42,7 +55,7 @@ type HousingFavorite struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// HousingBrowseHistory records listing browse events.
+// HousingBrowseHistory 浏览历史
 type HousingBrowseHistory struct {
 	ID        string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	UserID    string    `gorm:"type:uuid;not null;index" json:"user_id"`
@@ -50,10 +63,10 @@ type HousingBrowseHistory struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// HousingListResponse wraps paginated search results.
+// HousingListResponse 分页列表返回值
 type HousingListResponse struct {
-	Items      []HousingListing `json:"items"`
-	Total      int64            `json:"total"`
-	Page       int              `json:"page"`
-	PageSize   int              `json:"page_size"`
+	Items    []HousingListing `json:"items"`
+	Total    int64            `json:"total"`
+	Page     int              `json:"page"`
+	PageSize int              `json:"page_size"`
 }
