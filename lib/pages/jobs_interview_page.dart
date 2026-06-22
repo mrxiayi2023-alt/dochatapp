@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import '../services/notification_service.dart';
 
 class InterviewEntry {
   final String id;
@@ -57,6 +58,8 @@ class _JobsInterviewPageState extends State<JobsInterviewPage> {
   void initState() {
     super.initState();
     _interviews = List.from(isCompany ? _companyInterviews : _personalInterviews);
+    // 进入面试通知Tab → 清除面试邀请角标
+    NotificationService.clearBadge('jobs_interview');
   }
 
   void _updateStatus(InterviewEntry entry, String status) {

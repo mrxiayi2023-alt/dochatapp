@@ -94,6 +94,7 @@ class JobsResumePreviewPage extends StatelessWidget {
       _buildInfoRow('姓名', '张三'),
       _buildInfoRow('性别', '男'),
       _buildInfoRow('出生年月', '1998-05-20'),
+      _buildInfoRow('当前状态', '在职'),
       _buildInfoRow('手机号', '13800001234'),
       _buildInfoRow('邮箱', 'zhangsan@example.com'),
       _buildInfoRow('籍贯', '江苏省扬州市'),
@@ -108,7 +109,7 @@ class JobsResumePreviewPage extends StatelessWidget {
       _buildInfoRow('期望薪资', '15K-25K'),
       _buildInfoRow('工作城市', '扬州市'),
       _buildInfoRow('工作性质', '全职'),
-      _buildInfoRow('到岗时间', '随时到岗'),
+      _buildInfoRow('到岗时间', '随时'),
     ]);
   }
 

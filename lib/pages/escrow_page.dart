@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'escrow_create_page.dart';
+import '../services/notification_service.dart';
 
 class _EscrowOrder {
   final String id;
@@ -513,6 +514,8 @@ class _EscrowPageState extends State<EscrowPage> {
   }
 
   void _showOrderDetail(_EscrowOrder order) {
+    // 查看担保单详情 → 清除担保角标
+    NotificationService.clearBadge('escrow');
     showCupertinoDialog(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import '../widgets/region_picker.dart';
+import 'jobs_page.dart';
 
 const _industries = [
   '互联网', '电子商务', '金融', '教育', '医疗', '制造',
@@ -411,6 +412,7 @@ class _JobsCompanyProfilePageState extends State<JobsCompanyProfilePage> {
     }
     if (!_nameVerified) {
       setState(() { _namePending = true; _saved = true; });
+      hasCompanyProfile = true; // 标记企业资料已设置
       showCupertinoDialog(
         context: context,
         builder: (ctx) => CupertinoAlertDialog(
@@ -424,6 +426,7 @@ class _JobsCompanyProfilePageState extends State<JobsCompanyProfilePage> {
       return;
     }
     setState(() => _saved = true);
+    hasCompanyProfile = true; // 标记企业资料已设置
     showCupertinoDialog(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(

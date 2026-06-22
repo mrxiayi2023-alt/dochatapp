@@ -5,6 +5,7 @@ import 'dating_page.dart';
 import 'jobs_page.dart';
 import 'mail_page.dart';
 import 'mall_page.dart';
+import '../services/notification_service.dart';
 
 // ---------------------------------------------------------------------------
 // Data Models
@@ -14,21 +15,23 @@ class _Service {
   final String emoji;
   final String name;
   final String description;
+  final String ecosystem; // key for NotificationService badge lookup
 
   const _Service({
     required this.emoji,
     required this.name,
     required this.description,
+    required this.ecosystem,
   });
 }
 
 const List<_Service> _services = [
-  _Service(emoji: '🔒', name: '电波担保', description: '资金托管，安心交易'),
-  _Service(emoji: '🛒', name: '电波商城', description: '闲置有价，工农直供'),
-  _Service(emoji: '💕', name: '电波婚恋', description: '真实交友，恋爱分数'),
-  _Service(emoji: '🏠', name: '电波找房', description: '直连房东，无中介费'),
-  _Service(emoji: '💼', name: '电波直聘', description: '企业直招，信誉保障'),
-  _Service(emoji: '📧', name: '电波邮箱', description: '账号即邮箱，注册即开通'),
+  _Service(emoji: '🔒', name: '电波担保', description: '资金托管，安心交易', ecosystem: 'escrow'),
+  _Service(emoji: '🛒', name: '电波商城', description: '闲置有价，工农直供', ecosystem: 'mall'),
+  _Service(emoji: '💕', name: '电波婚恋', description: '真实交友，恋爱分数', ecosystem: 'dating'),
+  _Service(emoji: '🏠', name: '电波找房', description: '直连房东，无中介费', ecosystem: 'housing'),
+  _Service(emoji: '💼', name: '电波直聘', description: '企业直招，信誉保障', ecosystem: 'jobs'),
+  _Service(emoji: '📧', name: '电波邮箱', description: '账号即邮箱，注册即开通', ecosystem: 'mail'),
 ];
 
 class _RecentItem {
@@ -49,8 +52,29 @@ const List<_RecentItem> _recentItems = [
 // Services Page
 // ---------------------------------------------------------------------------
 
-class ServicesPage extends StatelessWidget {
+class ServicesPage extends StatefulWidget {
   const ServicesPage({super.key});
+
+  @override
+  State<ServicesPage> createState() => _ServicesPageState();
+}
+
+class _ServicesPageState extends State<ServicesPage> {
+  @override
+  void initState() {
+    super.initState();
+    NotificationService.totalNotifier.addListener(_onBadgeChange);
+  }
+
+  @override
+  void dispose() {
+    NotificationService.totalNotifier.removeListener(_onBadgeChange);
+    super.dispose();
+  }
+
+  void _onBadgeChange() {
+    if (mounted) setState(() {});
+  }
 
   VoidCallback? _onServiceTap(BuildContext context, _Service service) {
     switch (service.name) {
@@ -221,22 +245,26 @@ class _ServiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final badge = NotificationService.getBadge(service.ecosystem);
     return GestureDetector(
       onTap: onTap ?? (() => _showComingSoon(context)),
-      child: Container(
-        decoration: BoxDecoration(
-          color: CupertinoColors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: CupertinoColors.systemGrey4.withValues(alpha: 0.3),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: CupertinoColors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: CupertinoColors.systemGrey4.withValues(alpha: 0.3),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-          ],
-        ),
-        padding: const EdgeInsets.all(20),
-        child: Column(
+            padding: const EdgeInsets.all(20),
+            child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Emoji icon
@@ -283,6 +311,30 @@ class _ServiceCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+      if (badge > 0)
+        Positioned(
+          right: -4,
+          top: -4,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: const BoxDecoration(
+              color: CupertinoColors.destructiveRed,
+              shape: BoxShape.circle,
+            ),
+            constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+            child: Text(
+              badge > 9 ? '9+' : '$badge',
+              style: const TextStyle(
+                color: CupertinoColors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+    ],
       ),
     );
   }

@@ -9,6 +9,7 @@ import 'jobs_company_profile_page.dart';
 import 'jobs_resume_preview_page.dart';
 import '../services/verification_service.dart';
 import '../services/jobs_chat_service.dart';
+import '../services/notification_service.dart';
 
 class JobsMyPage extends StatefulWidget {
   final String identity; // 'personal' or 'company'
@@ -61,7 +62,17 @@ class _JobsMyPageState extends State<JobsMyPage> {
                   groupValue: _tabIndex,
                   backgroundColor: CupertinoColors.systemGrey6,
                   thumbColor: CupertinoColors.white,
-                  onValueChanged: (v) { if (v != null) setState(() => _tabIndex = v); },
+                  onValueChanged: (v) {
+                    if (v != null) {
+                      setState(() => _tabIndex = v);
+                      if (isPersonal) {
+                        // 进入投递记录Tab → 清除简历反馈角标
+                        if (v == 1) NotificationService.clearBadge('jobs_feedback');
+                        // 进入面试通知Tab → 清除面试邀请角标
+                        if (v == 3) NotificationService.clearBadge('jobs_interview');
+                      }
+                    }
+                  },
                   children: Map.fromEntries(
                     List.generate(_tabs.length, (i) => MapEntry(i, _buildTabLabel(i))),
                   ),

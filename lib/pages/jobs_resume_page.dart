@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import '../services/verification_service.dart';
 import '../widgets/region_picker.dart';
+import 'jobs_page.dart';
 
 class _EduEntry {
   String school;
@@ -37,6 +38,7 @@ class _JobsResumePageState extends State<JobsResumePage> {
   final _emailCtrl = TextEditingController(text: 'zhangsan@example.com');
   RegionSelection? _nativeRegion;
   RegionSelection? _liveRegion;
+  String _currentStatus = '在职'; // 在职/待业
 
   // Job preferences
   final _desiredJobCtrl = TextEditingController(text: '前端开发工程师');
@@ -44,7 +46,7 @@ class _JobsResumePageState extends State<JobsResumePage> {
   final _desiredSalaryCtrl = TextEditingController(text: '15K-25K');
   RegionSelection? _workCityRegion;
   String _workType = '全职';
-  final _availableCtrl = TextEditingController(text: '随时到岗');
+  String _availableTime = '随时'; // 到岗时间：随时/一周内/两周内/一个月内
 
   // Education
   final List<_EduEntry> _eduList = [
@@ -62,8 +64,10 @@ class _JobsResumePageState extends State<JobsResumePage> {
   final _strengthCtrl = TextEditingController(text: '具备出色的前端架构能力，擅长复杂交互场景的技术方案设计，有良好的团队协作和沟通能力。');
 
   static const _genders = ['男', '女'];
+  static const _statusOptions = ['在职', '待业'];
   static const _degrees = ['大专', '本科', '硕士', '博士'];
   static const _workTypes = ['全职', '兼职', '实习'];
+  static const _availableOptions = ['随时', '一周内', '两周内', '一个月内'];
   static const _industries = [
     '互联网', '电子商务', '金融', '教育', '医疗', '制造',
     '房地产', '物流', '餐饮', '零售', '媒体', '法律',
@@ -73,7 +77,7 @@ class _JobsResumePageState extends State<JobsResumePage> {
   @override
   void dispose() {
     _nameCtrl.dispose(); _phoneCtrl.dispose(); _emailCtrl.dispose();
-    _desiredJobCtrl.dispose(); _desiredSalaryCtrl.dispose(); _availableCtrl.dispose();
+    _desiredJobCtrl.dispose(); _desiredSalaryCtrl.dispose();
     _skillInputCtrl.dispose(); _strengthCtrl.dispose();
     super.dispose();
   }
@@ -91,7 +95,11 @@ class _JobsResumePageState extends State<JobsResumePage> {
           onPressed: () {
             VerificationService.checkVerification(
               context,
-              () => setState(() => _editing = !_editing),
+              () {
+                setState(() => _editing = !_editing);
+                // 保存简历 → 标记简历已设置
+                if (!_editing) hasResume = true;
+              },
               message: '编辑简历需要完成实名认证，请先进行认证。',
             );
           },
@@ -215,6 +223,8 @@ class _JobsResumePageState extends State<JobsResumePage> {
       const SizedBox(height: 10),
       _buildDateRow('出生年月', _birthDate, (d) => setState(() => _birthDate = d)),
       const SizedBox(height: 10),
+      _buildSegRow('当前状态', _statusOptions, _currentStatus, (v) => setState(() => _currentStatus = v)),
+      const SizedBox(height: 10),
       _buildFieldRow('手机号', _phoneCtrl, keyboardType: TextInputType.phone),
       const SizedBox(height: 10),
       _buildFieldRow('邮箱', _emailCtrl, keyboardType: TextInputType.emailAddress),
@@ -238,8 +248,69 @@ class _JobsResumePageState extends State<JobsResumePage> {
       const SizedBox(height: 10),
       _buildSegRow('工作性质', _workTypes, _workType, (v) => setState(() => _workType = v)),
       const SizedBox(height: 10),
-      _buildFieldRow('到岗时间', _availableCtrl, placeholder: '如：随时到岗'),
+      _buildAvailableRow(),
     ]);
+  }
+
+  Widget _buildAvailableRow() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const SizedBox(width: 72, child: Text('到岗时间', style: TextStyle(fontSize: 14, color: CupertinoColors.systemGrey))),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _editing
+              ? GestureDetector(
+                  onTap: () => _showAvailableSheet(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                    decoration: BoxDecoration(color: const Color(0xFFF2F2F7), borderRadius: BorderRadius.circular(8)),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(_availableTime, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500))),
+                        const Icon(CupertinoIcons.chevron_down, size: 14, color: CupertinoColors.systemGrey),
+                      ],
+                    ),
+                  ),
+                )
+              : Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(_availableTime, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500))),
+        ),
+      ],
+    );
+  }
+
+  void _showAvailableSheet() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('选择到岗时间'),
+        actions: _availableOptions.map((opt) => CupertinoActionSheetAction(
+          onPressed: () {
+            setState(() => _availableTime = opt);
+            Navigator.of(ctx).pop();
+          },
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (_availableTime == opt)
+                const Icon(CupertinoIcons.checkmark, size: 18, color: CupertinoColors.activeBlue)
+              else
+                const SizedBox(width: 18),
+              const SizedBox(width: 8),
+              Text(opt, style: TextStyle(
+                fontSize: 16,
+                fontWeight: _availableTime == opt ? FontWeight.w600 : FontWeight.w400,
+                color: _availableTime == opt ? CupertinoColors.activeBlue : CupertinoColors.black,
+              )),
+            ],
+          ),
+        )).toList(),
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('取消'),
+        ),
+      ),
+    );
   }
 
   // ═══ Education ═══

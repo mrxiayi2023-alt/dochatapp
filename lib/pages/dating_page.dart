@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'dating_profile_page.dart';
+import '../services/notification_service.dart';
 
 class DatingUser {
   final String name;
@@ -108,6 +109,13 @@ class _DatingPageState extends State<DatingPage> {
   String _selectedGender = '';
   String _selectedAge = '';
   String _selectedDistance = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // 查看交友请求 → 清除婚恋角标
+    NotificationService.clearBadge('dating');
+  }
 
   List<DatingUser> get _filtered {
     var list = _demoUsers;

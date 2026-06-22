@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'mail_detail_page.dart';
 import 'mail_compose_page.dart';
+import '../services/notification_service.dart';
 
 class MailItem {
   final String id;
@@ -42,6 +43,13 @@ class _MailPageState extends State<MailPage> {
 
   static const _folders = ['收件箱', '已发送', '草稿箱', '垃圾箱'];
   static const _folderKeys = ['inbox', 'sent', 'drafts', 'trash'];
+
+  @override
+  void initState() {
+    super.initState();
+    // 进入收件箱 → 清除邮箱角标
+    NotificationService.clearBadge('mail');
+  }
 
   List<MailItem> get _filtered =>
       allMails.where((m) => m.folder == _folderKeys[_selectedFolder]).toList();

@@ -23,7 +23,7 @@ import 'providers/theme_provider.dart';
 import 'services/auth_provider.dart';
 import 'services/websocket_service.dart';
 import 'services/api_service.dart';
-import 'services/jobs_badge_service.dart';
+import 'services/notification_service.dart';
 
   /// 应用入口函数，初始化腾讯IM SDK并启动应用
 void main() {
@@ -132,20 +132,23 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   bool _wsConnected = false;
   String? _activeIncomingCallId;
   int _friendBadge = 0; // 好友申请角标数
-  int _jobsBadge = 0; // 直聘角标数
+  int _serviceBadge = 0; // 服务Tab总角标
 
   @override
   /// 初始化状态，检查认证状态
   void initState() {
     super.initState();
+    // 立即从当前 notifier 值初始化角标（避免首帧显示 0）
+    _friendBadge = FriendsPage.pendingRequestNotifier.value;
+    _serviceBadge = NotificationService.totalNotifier.value;
     // 监听全局待处理申请数变化
     FriendsPage.pendingRequestNotifier.addListener(_onFriendBadgeChanged);
-    JobsBadgeService.badgeNotifier.addListener(_onJobsBadgeChanged);
+    NotificationService.totalNotifier.addListener(_onServiceBadgeChanged);
     // 首帧后尝试连接 WebSocket 并预加载角标
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _connectCallWs();
       _initFriendBadge();
-      JobsBadgeService.init();
+      NotificationService.init();
     });
   }
 
@@ -156,9 +159,9 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     }
   }
 
-  void _onJobsBadgeChanged() {
+  void _onServiceBadgeChanged() {
     if (mounted) {
-      setState(() => _jobsBadge = JobsBadgeService.badgeNotifier.value);
+      setState(() => _serviceBadge = NotificationService.totalNotifier.value);
     }
   }
 
@@ -266,7 +269,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   /// 释放资源，取消WebSocket监听
   void dispose() {
     FriendsPage.pendingRequestNotifier.removeListener(_onFriendBadgeChanged);
-    JobsBadgeService.badgeNotifier.removeListener(_onJobsBadgeChanged);
+    NotificationService.totalNotifier.removeListener(_onServiceBadgeChanged);
     WebSocketService.shared.offCallStart(_onIncomingCall);
     WebSocketService.shared.offCallEnd(_onCallEndForIncoming);
     super.dispose();
@@ -290,7 +293,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
     // 动态构建底部导航栏项（好友Tab带角标，服务Tab带直聘角标）
     final badge = _friendBadge;
-    final jobsBadge = _jobsBadge;
+    final serviceBadge = _serviceBadge;
     final items = <BottomNavigationBarItem>[
       const BottomNavigationBarItem(
         icon: Icon(CupertinoIcons.chat_bubble),
@@ -308,8 +311,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         label: '广场',
       ),
       BottomNavigationBarItem(
-        icon: _buildTabIcon(CupertinoIcons.square_grid_2x2, jobsBadge),
-        activeIcon: _buildTabIcon(CupertinoIcons.square_grid_2x2_fill, jobsBadge),
+        icon: _buildTabIcon(CupertinoIcons.square_grid_2x2, serviceBadge),
+        activeIcon: _buildTabIcon(CupertinoIcons.square_grid_2x2_fill, serviceBadge),
         label: '服务',
       ),
       const BottomNavigationBarItem(

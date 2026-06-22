@@ -4,6 +4,7 @@ import 'mall_cart_page.dart';
 import 'mall_order_list_page.dart';
 import '../services/verification_service.dart';
 import '../services/cart_service.dart';
+import '../services/notification_service.dart';
 
 // ---------------------------------------------------------------------------
 // Data Models
@@ -190,6 +191,13 @@ class _MallPageState extends State<MallPage> {
   String _selectedDistance = '全国';
   String _selectedSort = '默认排序';
   bool _filterExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 查看订单消息 → 清除商城角标
+    NotificationService.clearBadge('mall');
+  }
 
   static const _distanceOptions = ['10km内', '50km内', '100km内', '500km内', '全国'];
   static const _distanceThresholds = [10, 50, 100, 500, double.infinity];

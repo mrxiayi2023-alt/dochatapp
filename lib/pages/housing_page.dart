@@ -5,6 +5,7 @@ import 'housing_map_page.dart';
 import 'housing_history_page.dart';
 import 'housing_favorites_page.dart';
 import '../services/housing_service.dart';
+import '../services/notification_service.dart';
 import '../widgets/region_picker.dart';
 
 class HouseItem {
@@ -73,6 +74,13 @@ class _HousingPageState extends State<HousingPage> {
   String _selectedPrice = '不限';
   String _selectedLayout = '全部';
   bool _filterExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 查看房东消息/进入找房 → 清除找房角标
+    NotificationService.clearBadge('housing');
+  }
 
   static const _distances = ['3km', '5km', '10km', '20km', '不限'];
   static const _prices = ['1000以下', '1000-2000', '2000-3000', '3000-5000', '5000以上', '不限'];
