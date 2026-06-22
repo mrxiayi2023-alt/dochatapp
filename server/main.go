@@ -40,7 +40,11 @@ func main() {
 // log.Println("PostgreSQL connected successfully")  // FIXED: removed print statement
 
 	// Auto-migrate
-	if err := db.AutoMigrate(&model.User{}, &model.Message{}, &model.FriendRequest{}, &model.Friend{}, &model.Call{}); err != nil {
+	if err := db.AutoMigrate(
+		&model.User{}, &model.Message{}, &model.FriendRequest{}, &model.Friend{}, &model.Call{},
+		&model.HousingListing{}, &model.HousingFavorite{}, &model.HousingBrowseHistory{},
+		&model.Job{}, &model.Company{}, &model.Resume{}, &model.JobApplication{}, &model.Interview{}, &model.JobFavorite{},
+	); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
 // log.Println("Database migration completed")  // FIXED: removed print statement
@@ -60,6 +64,21 @@ func main() {
 	msgHdr := handler.NewMessageHandler(msgSvc)
 	friendHdr := handler.NewFriendHandler(friendSvc)
 	callHdr := handler.NewCallHandler(db, hub)
+
+	// Housing module
+	housingRepo := repository.NewHousingRepository(db)
+	housingSvc := service.NewHousingService(housingRepo)
+	housingHdr := handler.NewHousingHandler(housingSvc)
+
+	// Jobs module
+	jobRepo := repository.NewJobRepo(db)
+	companyRepo := repository.NewCompanyRepo(db)
+	resumeRepo := repository.NewResumeRepo(db)
+	applicationRepo := repository.NewApplicationRepo(db)
+	interviewRepo := repository.NewInterviewRepo(db)
+	jobFavoriteRepo := repository.NewJobFavoriteRepo(db)
+	jobSvc := service.NewJobService(jobRepo, companyRepo, resumeRepo, applicationRepo, interviewRepo, jobFavoriteRepo)
+	jobHdr := handler.NewJobHandler(jobSvc)
 
 	// Gin engine
 	r := gin.Default()
@@ -123,6 +142,71 @@ func main() {
 		calls.POST("/accept", callHdr.Accept)
 		calls.POST("/reject", callHdr.Reject)
 		calls.POST("/end", callHdr.End)
+	}
+
+	// Housing routes (protected)
+	housing := api.Group("/housing")
+	housing.Use(jwt)
+	{
+		housing.POST("/publish", housingHdr.Publish)
+		housing.GET("/list", housingHdr.List)
+		housing.GET("/my", housingHdr.GetMyListings)
+		housing.GET("/favorites", housingHdr.GetFavorites)
+		housing.GET("/history", housingHdr.GetBrowseHistory)
+		housing.GET("/:id", housingHdr.Detail)
+		housing.PUT("/:id", housingHdr.Update)
+		housing.DELETE("/:id", housingHdr.Delete)
+		housing.POST("/:id/favorite", housingHdr.AddFavorite)
+		housing.DELETE("/:id/favorite", housingHdr.RemoveFavorite)
+	}
+
+	// Jobs routes (protected) — /list before /:id
+	jobs := api.Group("/jobs")
+	jobs.Use(jwt)
+	{
+		jobs.POST("/publish", jobHdr.PublishJob)
+		jobs.GET("/list", jobHdr.ListJobs)
+		jobs.GET("/my", jobHdr.GetMyJobs)
+		jobs.GET("/favorites", jobHdr.GetJobFavorites)
+		jobs.POST("/apply", jobHdr.ApplyJob)
+		jobs.GET("/applications", jobHdr.GetMyApplications)
+		jobs.GET("/:id", jobHdr.GetJobDetail)
+		jobs.PUT("/:id", jobHdr.UpdateJob)
+		jobs.DELETE("/:id", jobHdr.DeleteJob)
+		jobs.POST("/:id/favorite", jobHdr.AddJobFavorite)
+		jobs.DELETE("/:id/favorite", jobHdr.RemoveJobFavorite)
+		jobs.GET("/:id/applications", jobHdr.GetJobApplications)
+		jobs.PUT("/applications/:id", jobHdr.UpdateApplicationStatus)
+	}
+
+	// Company routes (protected)
+	company := api.Group("/company")
+	company.Use(jwt)
+	{
+		company.POST("/register", jobHdr.RegisterCompany)
+		company.GET("/profile", jobHdr.GetCompanyProfile)
+		company.PUT("/profile", jobHdr.UpdateCompany)
+		company.GET("/:id", jobHdr.GetCompanyByID)
+	}
+
+	// Resume routes (protected)
+	resume := api.Group("/resume")
+	resume.Use(jwt)
+	{
+		resume.POST("/create", jobHdr.CreateResume)
+		resume.PUT("/update", jobHdr.UpdateResume)
+		resume.GET("/my", jobHdr.GetMyResume)
+		resume.GET("/:id", jobHdr.GetResumeByID)
+	}
+
+	// Interview routes (protected)
+	interview := api.Group("/interview")
+	interview.Use(jwt)
+	{
+		interview.POST("/schedule", jobHdr.ScheduleInterview)
+		interview.GET("/list", jobHdr.GetMyInterviews)
+		interview.GET("/company", jobHdr.GetCompanyInterviews)
+		interview.PUT("/:id", jobHdr.UpdateInterview)
 	}
 
 	// WebSocket route
