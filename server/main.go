@@ -44,6 +44,8 @@ func main() {
 		&model.User{}, &model.Message{}, &model.FriendRequest{}, &model.Friend{}, &model.Call{},
 		&model.HousingListing{}, &model.HousingFavorite{}, &model.HousingBrowseHistory{},
 		&model.Job{}, &model.Company{}, &model.Resume{}, &model.JobApplication{}, &model.Interview{}, &model.JobFavorite{},
+		&model.MallProduct{}, &model.MallCartItem{}, &model.MallOrder{}, &model.MallOrderItem{}, &model.MallDispute{},
+		&model.EscrowOrder{}, &model.EscrowEvidence{},
 	); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
@@ -79,6 +81,19 @@ func main() {
 	jobFavoriteRepo := repository.NewJobFavoriteRepo(db)
 	jobSvc := service.NewJobService(jobRepo, companyRepo, resumeRepo, applicationRepo, interviewRepo, jobFavoriteRepo)
 	jobHdr := handler.NewJobHandler(jobSvc)
+
+	// Mall module
+	mallProductRepo := repository.NewProductRepo(db)
+	mallCartRepo := repository.NewCartRepo(db)
+	mallOrderRepo := repository.NewOrderRepo(db)
+	mallDisputeRepo := repository.NewDisputeRepo(db)
+	mallSvc := service.NewMallService(mallProductRepo, mallCartRepo, mallOrderRepo, mallDisputeRepo)
+	mallHdr := handler.NewMallHandler(mallSvc)
+
+	// Escrow module
+	escrowRepo := repository.NewEscrowRepository(db)
+	escrowSvc := service.NewEscrowService(escrowRepo)
+	escrowHdr := handler.NewEscrowHandler(escrowSvc)
 
 	// Gin engine
 	r := gin.Default()
@@ -207,6 +222,64 @@ func main() {
 		interview.GET("/list", jobHdr.GetMyInterviews)
 		interview.GET("/company", jobHdr.GetCompanyInterviews)
 		interview.PUT("/:id", jobHdr.UpdateInterview)
+	}
+
+	// Mall routes (protected)
+	mall := api.Group("/mall")
+	mall.Use(jwt)
+	{
+		// Product
+		mallProduct := mall.Group("/product")
+		{
+			mallProduct.POST("/publish", mallHdr.PublishProduct)
+			mallProduct.GET("/list", mallHdr.ListProducts)
+			mallProduct.GET("/:id", mallHdr.ProductDetail)
+		}
+		// Cart
+		mallCart := mall.Group("/cart")
+		{
+			mallCart.POST("/add", mallHdr.AddToCart)
+			mallCart.PUT("/update", mallHdr.UpdateCartItem)
+			mallCart.DELETE("/:productId", mallHdr.RemoveFromCart)
+			mallCart.GET("", mallHdr.GetCart)
+		}
+		// Order
+		mallOrder := mall.Group("/order")
+		{
+			mallOrder.POST("/create", mallHdr.CreateOrder)
+			mallOrder.GET("/list", mallHdr.ListOrders)
+			mallOrder.GET("/:id", mallHdr.OrderDetail)
+			mallOrder.POST("/:id/ship", mallHdr.ShipOrder)
+			mallOrder.POST("/:id/receive", mallHdr.ReceiveOrder)
+			mallOrder.POST("/:id/complete", mallHdr.CompleteOrder)
+			mallOrder.POST("/:id/refund", mallHdr.RequestRefund)
+			mallOrder.POST("/:id/refund/approve", mallHdr.ApproveRefund)
+			mallOrder.POST("/:id/refund/reject", mallHdr.RejectRefund)
+			mallOrder.POST("/:id/return", mallHdr.RequestReturn)
+			mallOrder.POST("/:id/return/approve", mallHdr.ApproveReturn)
+			mallOrder.POST("/:id/return/reject", mallHdr.RejectReturn)
+		}
+		// Dispute
+		mall.POST("/dispute", mallHdr.CreateDispute)
+		mall.GET("/disputes", mallHdr.ListDisputes)
+	}
+
+	// Escrow routes (protected)
+	escrow := api.Group("/escrow")
+	escrow.Use(jwt)
+	{
+		escrow.POST("/create", escrowHdr.Create)
+		escrow.GET("/list", escrowHdr.List)
+		escrow.GET("/:id", escrowHdr.Detail)
+		escrow.POST("/:id/accept", escrowHdr.Accept)
+		escrow.POST("/:id/deposit", escrowHdr.PayDeposit)
+		escrow.POST("/:id/confirm-phase", escrowHdr.ConfirmPhase)
+		escrow.POST("/:id/reject-phase", escrowHdr.RejectPhase)
+		escrow.POST("/:id/dispute", escrowHdr.SubmitDispute)
+		escrow.POST("/:id/evidence", escrowHdr.AddEvidence)
+		escrow.POST("/:id/arbitrate", escrowHdr.ResolveArbitration)
+		escrow.POST("/:id/complete", escrowHdr.Complete)
+		escrow.POST("/:id/cancel", escrowHdr.Cancel)
 	}
 
 	// WebSocket route
