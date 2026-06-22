@@ -46,6 +46,8 @@ func main() {
 		&model.Job{}, &model.Company{}, &model.Resume{}, &model.JobApplication{}, &model.Interview{}, &model.JobFavorite{},
 		&model.MallProduct{}, &model.MallCartItem{}, &model.MallOrder{}, &model.MallOrderItem{}, &model.MallDispute{},
 		&model.EscrowOrder{}, &model.EscrowEvidence{},
+		&model.DatingProfile{}, &model.DatingLike{},
+		&model.Mail{},
 	); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
@@ -95,6 +97,19 @@ func main() {
 	escrowSvc := service.NewEscrowService(escrowRepo)
 	escrowHdr := handler.NewEscrowHandler(escrowSvc)
 
+	// Dating module
+	datingRepo := repository.NewDatingRepository(db)
+	datingSvc := service.NewDatingService(datingRepo)
+	datingHdr := handler.NewDatingHandler(datingSvc)
+
+	// Mail module
+	mailRepo := repository.NewMailRepository(db)
+	mailSvc := service.NewMailService(mailRepo)
+	mailHdr := handler.NewMailHandler(mailSvc)
+
+	// Upload handler
+	uploadHdr := handler.NewUploadHandler()
+
 	// Gin engine
 	r := gin.Default()
 
@@ -118,6 +133,9 @@ func main() {
 			auth.POST("/register", authHdr.Register)
 			auth.POST("/login", authHdr.Login)
 		}
+
+		// Upload route (public)
+		api.POST("/upload/image", uploadHdr.UploadImage)
 	}
 
 	// Protected routes
@@ -281,6 +299,35 @@ func main() {
 		escrow.POST("/:id/complete", escrowHdr.Complete)
 		escrow.POST("/:id/cancel", escrowHdr.Cancel)
 	}
+
+	// Dating routes (protected) — list before /:id
+	dating := api.Group("/dating")
+	dating.Use(jwt)
+	{
+		dating.POST("/profile", datingHdr.SaveProfile)
+		dating.GET("/profile", datingHdr.GetProfile)
+		dating.GET("/recommend", datingHdr.Recommend)
+		dating.POST("/like", datingHdr.Like)
+		dating.GET("/matches", datingHdr.GetMatches)
+		dating.GET("/profile/:id", datingHdr.GetProfileByID)
+	}
+
+	// Mail routes (protected)
+	mailRoutes := api.Group("/mail")
+	mailRoutes.Use(jwt)
+	{
+		mailRoutes.POST("/send", mailHdr.Send)
+		mailRoutes.GET("/inbox", mailHdr.Inbox)
+		mailRoutes.GET("/sent", mailHdr.Sent)
+		mailRoutes.GET("/drafts", mailHdr.Drafts)
+		mailRoutes.GET("/:id", mailHdr.Detail)
+		mailRoutes.POST("/:id/trash", mailHdr.MoveToTrash)
+		mailRoutes.POST("/:id/restore", mailHdr.Restore)
+		mailRoutes.DELETE("/:id", mailHdr.Delete)
+	}
+
+	// Static file serving
+	r.Static("/uploads", "./uploads")
 
 	// WebSocket route
 	r.GET("/ws", func(c *gin.Context) {
