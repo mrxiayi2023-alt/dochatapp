@@ -1,16 +1,11 @@
 package handler
 
-// 电波灵动即时通讯系统 V1.0
-// 著作权人：江苏栩熙晨梦网络科技有限公司
-// 开发完成日期：2026年5月28日
-// 文件说明：认证相关HTTP处理器
-
-
-
 import (
 	"net/http"
 
+	"dochatapp/server/config"
 	"dochatapp/server/internal/service"
+	"dochatapp/server/pkg/im"
 	"dochatapp/server/pkg/response"
 
 	"github.com/gin-gonic/gin"
@@ -18,12 +13,17 @@ import (
 
 // AuthHandler handles auth-related HTTP requests.
 type AuthHandler struct {
-	svc *service.AuthService
+	svc     *service.AuthService
+	imCfg   *im.UserSigConfig
 }
 
 // NewAuthHandler creates a new AuthHandler.
-func NewAuthHandler(svc *service.AuthService) *AuthHandler {
-	return &AuthHandler{svc: svc}
+func NewAuthHandler(svc *service.AuthService, cfg *config.Config) *AuthHandler {
+	imCfg := &im.UserSigConfig{
+		SDKAppID: cfg.IMAppID,
+		Secret:   cfg.IMSecret,
+	}
+	return &AuthHandler{svc: svc, imCfg: imCfg}
 }
 
 // Register handles POST /api/auth/register.
@@ -38,6 +38,12 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return
+	}
+
+	// Generate userSig for Tencent IM
+	userSig, err := im.GenerateUserSig(h.imCfg, resp.User.ID)
+	if err == nil {
+		resp.UserSig = userSig
 	}
 
 	response.Success(c, resp)
@@ -55,6 +61,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if err != nil {
 		response.Error(c, http.StatusUnauthorized, err.Error())
 		return
+	}
+
+	// Generate userSig for Tencent IM
+	userSig, err := im.GenerateUserSig(h.imCfg, resp.User.ID)
+	if err == nil {
+		resp.UserSig = userSig
 	}
 
 	response.Success(c, resp)

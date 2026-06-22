@@ -1,7 +1,7 @@
-// 电波灵动即时通讯系统 V1.0
-// 著作权人：江苏栩熙晨梦网络科技有限公司
-// 开发完成日期：2026年5月28日
-// 文件说明：应用入口与主界面框架
+﻿// 鐢垫尝鐏靛姩鍗虫椂閫氳绯荤粺 V1.0
+// 钁椾綔鏉冧汉锛氭睙鑻忔牘鐔欐櫒姊︾綉缁滅鎶€鏈夐檺鍏徃
+// 寮€鍙戝畬鎴愭棩鏈燂細2026骞?鏈?8鏃?
+// 鏂囦欢璇存槑锛氬簲鐢ㄥ叆鍙ｄ笌涓荤晫闈㈡鏋?
 
 import 'dart:async';
 import 'dart:convert';
@@ -25,12 +25,12 @@ import 'services/websocket_service.dart';
 import 'services/api_service.dart';
 import 'services/notification_service.dart';
 
-  /// 应用入口函数，初始化腾讯IM SDK并启动应用
+  /// 搴旂敤鍏ュ彛鍑芥暟锛屽垵濮嬪寲鑵捐IM SDK骞跺惎鍔ㄥ簲鐢?
 void main() {
-  // 初始化腾讯IM（占位值，后续替换真实SDKAppID和userSig）
+  // 鍒濆鍖栬吘璁疘M锛堝崰浣嶅€硷紝鍚庣画鏇挎崲鐪熷疄SDKAppID鍜寀serSig锛?
   if (!kIsWeb) {
     TencentImSDKPlugin.v2TIMManager.initSDK(
-      sdkAppID: 1400000000,
+      sdkAppID: 1600148063,
       loglevel: LogLevelEnum.V2TIM_LOG_DEBUG,
       listener: V2TimSDKListener(),
     );
@@ -42,16 +42,16 @@ void main() {
 // Root App
 // ---------------------------------------------------------------------------
 
-/// 应用根组件，配置Cupertino主题和路由
+/// 搴旂敤鏍圭粍浠讹紝閰嶇疆Cupertino涓婚鍜岃矾鐢?
 class DochatappApp extends ConsumerWidget {
   const DochatappApp({super.key});
 
   @override
-  /// 构建Widget树
+  /// 鏋勫缓Widget鏍?
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = ref.watch(darkModeProvider);
     return CupertinoApp(
-      title: '电邮',
+      title: '鐢甸偖',
       debugShowCheckedModeBanner: false,
       theme: CupertinoThemeData(
         primaryColor: CupertinoColors.systemBlue,
@@ -68,10 +68,10 @@ class DochatappApp extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Auth Gate — checks token and shows Login or MainScreen
+// Auth Gate 鈥?checks token and shows Login or MainScreen
 // ---------------------------------------------------------------------------
 
-/// 认证状态网关，根据登录状态显示登录页或主页
+/// 璁よ瘉鐘舵€佺綉鍏筹紝鏍规嵁鐧诲綍鐘舵€佹樉绀虹櫥褰曢〉鎴栦富椤?
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
@@ -81,7 +81,7 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   @override
-  /// 初始化状态，检查认证状态
+  /// 鍒濆鍖栫姸鎬侊紝妫€鏌ヨ璇佺姸鎬?
   void initState() {
     super.initState();
     // Check for stored token on startup
@@ -89,7 +89,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   @override
-  /// 构建Widget树
+  /// 鏋勫缓Widget鏍?
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
 
@@ -120,7 +120,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 // Main Tab Screen
 // ---------------------------------------------------------------------------
 
-/// 主导航页面，包含底部Tab栏和WebSocket连接管理
+/// 涓诲鑸〉闈紝鍖呭惈搴曢儴Tab鏍忓拰WebSocket杩炴帴绠＄悊
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
 
@@ -131,20 +131,20 @@ class MainScreen extends ConsumerStatefulWidget {
 class _MainScreenState extends ConsumerState<MainScreen> {
   bool _wsConnected = false;
   String? _activeIncomingCallId;
-  int _friendBadge = 0; // 好友申请角标数
-  int _serviceBadge = 0; // 服务Tab总角标
+  int _friendBadge = 0; // 濂藉弸鐢宠瑙掓爣鏁?
+  int _serviceBadge = 0; // 鏈嶅姟Tab鎬昏鏍?
 
   @override
-  /// 初始化状态，检查认证状态
+  /// 鍒濆鍖栫姸鎬侊紝妫€鏌ヨ璇佺姸鎬?
   void initState() {
     super.initState();
-    // 立即从当前 notifier 值初始化角标（避免首帧显示 0）
+    // 绔嬪嵆浠庡綋鍓?notifier 鍊煎垵濮嬪寲瑙掓爣锛堥伩鍏嶉甯ф樉绀?0锛?
     _friendBadge = FriendsPage.pendingRequestNotifier.value;
     _serviceBadge = NotificationService.totalNotifier.value;
-    // 监听全局待处理申请数变化
+    // 鐩戝惉鍏ㄥ眬寰呭鐞嗙敵璇锋暟鍙樺寲
     FriendsPage.pendingRequestNotifier.addListener(_onFriendBadgeChanged);
     NotificationService.totalNotifier.addListener(_onServiceBadgeChanged);
-    // 首帧后尝试连接 WebSocket 并预加载角标
+    // 棣栧抚鍚庡皾璇曡繛鎺?WebSocket 骞堕鍔犺浇瑙掓爣
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _connectCallWs();
       _initFriendBadge();
@@ -152,7 +152,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     });
   }
 
-  /// 全局待处理申请数变化时同步角标
+  /// 鍏ㄥ眬寰呭鐞嗙敵璇锋暟鍙樺寲鏃跺悓姝ヨ鏍?
   void _onFriendBadgeChanged() {
     if (mounted) {
       setState(() => _friendBadge = FriendsPage.pendingRequestNotifier.value);
@@ -165,7 +165,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     }
   }
 
-  /// 预加载好友申请角标（在好友页面初始化前）
+  /// 棰勫姞杞藉ソ鍙嬬敵璇疯鏍囷紙鍦ㄥソ鍙嬮〉闈㈠垵濮嬪寲鍓嶏級
   Future<void> _initFriendBadge() async {
     try {
       final data = await ApiService.instance.getFriendRequests();
@@ -175,7 +175,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         FriendsPage.pendingRequestNotifier.value = count;
       }
     } catch (_) {
-      // API 失败时使用演示值 3，与 friends_page 保持一致
+      // API 澶辫触鏃朵娇鐢ㄦ紨绀哄€?3锛屼笌 friends_page 淇濇寔涓€鑷?
       if (mounted) {
         setState(() => _friendBadge = 3);
         FriendsPage.pendingRequestNotifier.value = 3;
@@ -183,23 +183,23 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     }
   }
 
-  /// 建立WebSocket通话信令连接
+  /// 寤虹珛WebSocket閫氳瘽淇′护杩炴帴
   Future<void> _connectCallWs() async {
     if (_wsConnected) return;
 
-    // 1) 从 auth state 获取 userId
+    // 1) 浠?auth state 鑾峰彇 userId
     String? userId;
     final authState = ref.read(authProvider);
     userId = authState.user?['id'] as String?;
 
-    // 2) 如果 auth state 没有（checkAuth 异步加载 profile 尚未完成），
-    //    直接通过 API 获取用户信息
+    // 2) 濡傛灉 auth state 娌℃湁锛坈heckAuth 寮傛鍔犺浇 profile 灏氭湭瀹屾垚锛夛紝
+    //    鐩存帴閫氳繃 API 鑾峰彇鐢ㄦ埛淇℃伅
     if (userId == null || userId.isEmpty) {
       try {
         final profile = await ApiService.instance.getProfile();
         userId = profile['id'] as String?;
       } catch (_) {
-        // API 也失败，无法连接 WebSocket
+        // API 涔熷け璐ワ紝鏃犳硶杩炴帴 WebSocket
         return;
       }
     }
@@ -212,23 +212,23 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     if (mounted) setState(() => _wsConnected = true);
   }
 
-  /// 处理来电消息，弹出接听页面
+  /// 澶勭悊鏉ョ數娑堟伅锛屽脊鍑烘帴鍚〉闈?
   void _onIncomingCall(WsChatMessage msg) {
     if (!mounted) return;
 
     final callId = msg.msgId ?? '';
-    // 防止重复推送：同一 callId 的来电只弹一次 IncomingCallPage
+    // 闃叉閲嶅鎺ㄩ€侊細鍚屼竴 callId 鐨勬潵鐢靛彧寮逛竴娆?IncomingCallPage
     if (_activeIncomingCallId == callId) return;
     _activeIncomingCallId = callId;
 
     // Parse payload: Content is JSON {"call_type":"...","caller_name":"..."}
     String callTypeStr = 'audio';
-    String callerName = '未知';
+    String callerName = '鏈煡';
     try {
       if (msg.content.startsWith('{')) {
         final map = jsonDecode(msg.content) as Map<String, dynamic>;
         callTypeStr = map['call_type'] as String? ?? 'audio';
-        callerName = map['caller_name'] as String? ?? '未知';
+        callerName = map['caller_name'] as String? ?? '鏈煡';
       } else {
         callTypeStr = msg.content; // fallback: plain call_type
       }
@@ -237,7 +237,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     }
 
     // If callerName is still empty, try to get it from callerId as fallback
-    if (callerName.isEmpty || callerName == '未知') {
+    if (callerName.isEmpty || callerName == '鏈煡') {
       callerName = msg.fromId;
     }
 
@@ -251,14 +251,14 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         ),
       ),
     ).then((_) {
-      // IncomingCallPage 被关闭时（接受/拒接/对方取消），清除活跃来电ID
+      // IncomingCallPage 琚叧闂椂锛堟帴鍙?鎷掓帴/瀵规柟鍙栨秷锛夛紝娓呴櫎娲昏穬鏉ョ數ID
       if (_activeIncomingCallId == callId) {
         _activeIncomingCallId = null;
       }
     });
   }
 
-  /// 处理对方挂断/取消通话事件（安全网：清除活跃来电ID，防止过期 call-start 重复弹窗）
+  /// 澶勭悊瀵规柟鎸傛柇/鍙栨秷閫氳瘽浜嬩欢锛堝畨鍏ㄧ綉锛氭竻闄ゆ椿璺冩潵鐢礗D锛岄槻姝㈣繃鏈?call-start 閲嶅寮圭獥锛?
   void _onCallEndForIncoming(WsChatMessage msg) {
     if (_activeIncomingCallId == msg.msgId) {
       _activeIncomingCallId = null;
@@ -266,7 +266,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   }
 
   @override
-  /// 释放资源，取消WebSocket监听
+  /// 閲婃斁璧勬簮锛屽彇娑圵ebSocket鐩戝惉
   void dispose() {
     FriendsPage.pendingRequestNotifier.removeListener(_onFriendBadgeChanged);
     NotificationService.totalNotifier.removeListener(_onServiceBadgeChanged);
@@ -276,12 +276,12 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   }
 
   @override
-  /// 构建Widget树
+  /// 鏋勫缓Widget鏍?
   Widget build(BuildContext context) {
-    // 监听深色模式，联动底部导航栏颜色
+    // 鐩戝惉娣辫壊妯″紡锛岃仈鍔ㄥ簳閮ㄥ鑸爮棰滆壊
     final isDark = ref.watch(darkModeProvider);
 
-    // 监听 auth 状态变化（ref.listen 只能在 build 方法中调用）
+    // 鐩戝惉 auth 鐘舵€佸彉鍖栵紙ref.listen 鍙兘鍦?build 鏂规硶涓皟鐢級
     ref.listen<AuthState>(authProvider, (AuthState? prev, AuthState next) {
       if (next.status == AuthStatus.authenticated && !_wsConnected) {
         _connectCallWs();
@@ -291,34 +291,34 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       }
     });
 
-    // 动态构建底部导航栏项（好友Tab带角标，服务Tab带直聘角标）
+    // 鍔ㄦ€佹瀯寤哄簳閮ㄥ鑸爮椤癸紙濂藉弸Tab甯﹁鏍囷紝鏈嶅姟Tab甯︾洿鑱樿鏍囷級
     final badge = _friendBadge;
     final serviceBadge = _serviceBadge;
     final items = <BottomNavigationBarItem>[
       const BottomNavigationBarItem(
         icon: Icon(CupertinoIcons.chat_bubble),
         activeIcon: Icon(CupertinoIcons.chat_bubble_fill),
-        label: '聊天',
+        label: '鑱婂ぉ',
       ),
       BottomNavigationBarItem(
         icon: _buildTabIcon(CupertinoIcons.person_2, badge),
         activeIcon: _buildTabIcon(CupertinoIcons.person_2_fill, badge),
-        label: '好友',
+        label: '濂藉弸',
       ),
       const BottomNavigationBarItem(
         icon: Icon(CupertinoIcons.globe),
         activeIcon: Icon(CupertinoIcons.globe),
-        label: '广场',
+        label: '骞垮満',
       ),
       BottomNavigationBarItem(
         icon: _buildTabIcon(CupertinoIcons.square_grid_2x2, serviceBadge),
         activeIcon: _buildTabIcon(CupertinoIcons.square_grid_2x2_fill, serviceBadge),
-        label: '服务',
+        label: '鏈嶅姟',
       ),
       const BottomNavigationBarItem(
         icon: Icon(CupertinoIcons.gear),
         activeIcon: Icon(CupertinoIcons.gear_solid),
-        label: '设置',
+        label: '璁剧疆',
       ),
     ];
 
@@ -360,7 +360,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     );
   }
 
-  /// 构建带角标的底部导航栏图标
+  /// 鏋勫缓甯﹁鏍囩殑搴曢儴瀵艰埅鏍忓浘鏍?
   Widget _buildTabIcon(IconData icon, int badge) {
     if (badge <= 0) return Icon(icon);
     return Stack(
@@ -392,6 +392,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     );
   }
 }
+
+
 
 
 

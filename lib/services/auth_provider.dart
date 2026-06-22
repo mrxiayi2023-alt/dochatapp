@@ -1,9 +1,10 @@
 // 电波灵动即时通讯系统 V1.0
-// 著作权人：江苏栩熙晨梦网络科技有限公司
-// 开发完成日期：2026年5月28日
-// 文件说明：认证状态管理Provider
+// 著作权人：江苏栖熙启梦网络科技有限公司
+// 开发完成日期：2026年6月8日
+// 文件说明：认证状态管理Provider（集成腾讯IM登录）
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tencent_cloud_chat_sdk/tencent_im_sdk_plugin.dart';
 import 'api_service.dart';
 
 // ---------------------------------------------------------------------------
@@ -12,7 +13,6 @@ import 'api_service.dart';
 
 enum AuthStatus { initial, authenticated, unauthenticated }
 
-/// 认证状态模型，包含状态、令牌、用户信息和错误
 class AuthState {
   final AuthStatus status;
   final String? token;
@@ -26,7 +26,6 @@ class AuthState {
     this.error,
   });
 
-  /// 创建认证状态副本
   AuthState copyWith({
     AuthStatus? status,
     String? token,
@@ -46,7 +45,6 @@ class AuthState {
 // Auth Notifier
 // ---------------------------------------------------------------------------
 
-/// 认证状态管理器，处理登录、注册、登出和令牌刷新
 class AuthNotifier extends StateNotifier<AuthState> {
   AuthNotifier() : super(const AuthState());
 
@@ -63,6 +61,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       try {
         final user = await api.getProfile();
         state = state.copyWith(user: user);
+        // Try to re-login to Tencent IM
+        if (user != null && user['id'] != null) {
+          _loginIM(user['id'] as String, '');
+        }
       } catch (_) {
         // Token might be expired; continue with just the token
       }
@@ -80,14 +82,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       final token = data['token'] as String;
       final user = data['user'] as Map<String, dynamic>?;
-      // Persist token in ApiService so subsequent API calls carry it
+      final userSig = data['user_sig'] as String? ?? '';
+
       await ApiService.instance.saveToken(token);
+
+      // Login to Tencent IM
+      if (user != null && user['id'] != null) {
+        await _loginIM(user['id'] as String, userSig);
+      }
+
       state = AuthState(
         status: AuthStatus.authenticated,
         token: token,
         user: user,
       );
-      return null; // no error
+      return null;
     } catch (e) {
       return e.toString().replaceFirst('Exception: ', '');
     }
@@ -103,21 +112,33 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       final token = data['token'] as String;
       final user = data['user'] as Map<String, dynamic>?;
-      // Persist token in ApiService so subsequent API calls carry it
+      final userSig = data['user_sig'] as String? ?? '';
+
       await ApiService.instance.saveToken(token);
+
+      // Login to Tencent IM
+      if (user != null && user['id'] != null) {
+        await _loginIM(user['id'] as String, userSig);
+      }
+
       state = AuthState(
         status: AuthStatus.authenticated,
         token: token,
         user: user,
       );
-      return null; // no error
+      return null;
     } catch (e) {
       return e.toString().replaceFirst('Exception: ', '');
     }
   }
 
-  /// Logout — clear token and reset state.
+  /// Logout — clear token, logout IM, reset state.
   Future<void> logout() async {
+    try {
+      await TencentImSDKPlugin.v2TIMManager.logout();
+    } catch (_) {
+      // IM logout failure is non-critical
+    }
     await ApiService.instance.clearToken();
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
@@ -129,6 +150,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(user: user);
     } catch (_) {
       // Silently fail; cached data is fine
+    }
+  }
+
+  /// Login to Tencent IM with userID and userSig.
+  Future<void> _loginIM(String userID, String userSig) async {
+    if (userSig.isEmpty) return;
+    try {
+      await TencentImSDKPlugin.v2TIMManager.login(
+        userID: userID,
+        userSig: userSig,
+      );
+    } catch (_) {
+      // IM login failure is non-critical; app still works
     }
   }
 }

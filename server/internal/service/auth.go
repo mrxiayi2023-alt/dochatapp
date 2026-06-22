@@ -1,12 +1,5 @@
 package service
 
-// 电波灵动即时通讯系统 V1.0
-// 著作权人：江苏栩熙晨梦网络科技有限公司
-// 开发完成日期：2026年5月28日
-// 文件说明：认证业务逻辑
-
-
-
 import (
 	"errors"
 	"regexp"
@@ -46,30 +39,27 @@ type LoginRequest struct {
 
 // AuthResponse is returned after successful auth.
 type AuthResponse struct {
-	Token string       `json:"token"`
-	User  *model.User `json:"user"`
+	Token   string       `json:"token"`
+	User    *model.User `json:"user"`
+	UserSig string      `json:"user_sig"`
 }
 
 // Register creates a new user and returns a JWT.
 func (s *AuthService) Register(req *RegisterRequest) (*AuthResponse, error) {
-	// Validate phone format (simple Chinese mobile: 11 digits starting with 1)
 	matched, _ := regexp.MatchString(`^1\d{10}$`, req.Phone)
 	if !matched {
 		return nil, errors.New("invalid phone number format")
 	}
 
-	// Accept any 6-digit verification code for now
 	if matched, _ := regexp.MatchString(`^\d{6}$`, req.Code); !matched {
 		return nil, errors.New("invalid verification code")
 	}
 
-	// Check if phone already registered
 	existing, _ := s.repo.FindByPhone(req.Phone)
 	if existing != nil {
 		return nil, errors.New("phone already registered")
 	}
 
-	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, errors.New("failed to hash password")
@@ -132,7 +122,7 @@ func (s *AuthService) GetProfile(userID string) (*model.User, error) {
 	return user, nil
 }
 
-// generateToken 生成JWT令牌（有效期72小时）
+// generateToken generates a JWT with 72h expiry.
 func (s *AuthService) generateToken(userID string) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID,

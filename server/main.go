@@ -1,9 +1,9 @@
-package main
+﻿package main
 
-// 电波灵动即时通讯系统 V1.0
-// 著作权人：江苏栩熙晨梦网络科技有限公司
-// 开发完成日期：2026年5月28日
-// 文件说明：服务器入口与路由配置
+// 鐢垫尝鐏靛姩鍗虫椂閫氳绯荤粺 V1.0
+// 钁椾綔鏉冧汉锛氭睙鑻忔牘鐔欐櫒姊︾綉缁滅鎶€鏈夐檺鍏徃
+// 寮€鍙戝畬鎴愭棩鏈燂細2026骞?鏈?8鏃?
+// 鏂囦欢璇存槑锛氭湇鍔″櫒鍏ュ彛涓庤矾鐢遍厤缃?
 
 
 
@@ -24,7 +24,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// main 服务器入口函数，初始化数据库、路由和WebSocket中心
+// main 鏈嶅姟鍣ㄥ叆鍙ｅ嚱鏁帮紝鍒濆鍖栨暟鎹簱銆佽矾鐢卞拰WebSocket涓績
 func main() {
 	cfg := config.Load()
 
@@ -60,7 +60,7 @@ func main() {
 	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret)
 	msgSvc := service.NewMessageService(msgRepo, hub)
 	friendSvc := service.NewFriendService(friendRepo, userRepo)
-	authHdr := handler.NewAuthHandler(authSvc)
+	authHdr := handler.NewAuthHandler(authSvc, cfg)
 	msgHdr := handler.NewMessageHandler(msgSvc)
 	friendHdr := handler.NewFriendHandler(friendSvc)
 	callHdr := handler.NewCallHandler(db, hub)
@@ -160,7 +160,7 @@ func main() {
 		housing.DELETE("/:id/favorite", housingHdr.RemoveFavorite)
 	}
 
-	// Jobs routes (protected) — /list before /:id
+	// Jobs routes (protected) 鈥?/list before /:id
 	jobs := api.Group("/jobs")
 	jobs.Use(jwt)
 	{
@@ -230,3 +230,4 @@ func main() {
 		log.Fatalf("failed to start server: %v", err)
 	}
 }
+
