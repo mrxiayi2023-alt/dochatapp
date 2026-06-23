@@ -2,35 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'mail_detail_page.dart';
 import 'mail_compose_page.dart';
 import '../services/notification_service.dart';
-
-class MailItem {
-  final String id;
-  final String sender;
-  final String subject;
-  final String body;
-  final String time;
-  final bool isRead;
-  final String folder;
-
-  const MailItem({
-    required this.id,
-    required this.sender,
-    required this.subject,
-    required this.body,
-    required this.time,
-    required this.isRead,
-    required this.folder,
-  });
-}
-
-final List<MailItem> allMails = [
-  MailItem(id: '1', sender: 'hr@example.com', subject: '面试邀请 - 前端开发工程师', body: '您好，我们收到了您的简历，诚邀您参加面试...', time: '10:30', isRead: false, folder: 'inbox'),
-  MailItem(id: '2', sender: 'newsletter@tech.com', subject: '本周科技资讯汇总', body: '本期内容包括AI最新进展、Flutter 3.x发布...', time: '昨天', isRead: true, folder: 'inbox'),
-  MailItem(id: '3', sender: 'noreply@dochatapp.cn', subject: '账号安全提醒', body: '您的账号于异地登录，如非本人操作请及时修改密码...', time: '周一', isRead: false, folder: 'inbox'),
-  MailItem(id: '4', sender: 'me@dochatapp.cn', subject: 'Re: 项目进度汇报', body: '收到，已完成第一阶段的开发工作...', time: '周日', isRead: true, folder: 'sent'),
-  MailItem(id: '5', sender: 'me@dochatapp.cn', subject: '请假申请', body: '您好，因个人原因需要请假三天...', time: '上周五', isRead: true, folder: 'sent'),
-  MailItem(id: '6', sender: 'me@dochatapp.cn', subject: '未完成的邮件', body: '这封邮件还没写完...', time: '2天前', isRead: false, folder: 'drafts'),
-];
+import '../services/mail_service.dart';
 
 class MailPage extends StatefulWidget {
   const MailPage({super.key});
@@ -52,7 +24,7 @@ class _MailPageState extends State<MailPage> {
   }
 
   List<MailItem> get _filtered =>
-      allMails.where((m) => m.folder == _folderKeys[_selectedFolder]).toList();
+      MailService.getFolderMails(_folderKeys[_selectedFolder]);
 
   @override
   Widget build(BuildContext context) {

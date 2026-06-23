@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/cupertino.dart';
+import '../services/api_service.dart';
 
 class HousingListing {
   final String id;
@@ -50,6 +52,10 @@ class HousingService {
   static final Set<String> _favorites = {};
   static final List<String> _browseHistory = [];
   static bool _demoLoaded = false;
+  static bool _apiLoaded = false;
+
+  /// 是否已从API加载真实数据
+  static bool get isApiLoaded => _apiLoaded;
 
   static void _ensureDemo() {
     if (_demoLoaded) return;
@@ -104,6 +110,8 @@ class HousingService {
         contact: '13900002222', verificationStatus: 'pending', publisherType: '中介', companyName: '新城地产',
       ),
     ]);
+    // 后台尝试从API加载真实数据
+    _loadFromApi();
   }
 
   static List<HousingListing> get listings {
@@ -111,7 +119,33 @@ class HousingService {
     return _listings;
   }
 
-  static void publish(HousingListing listing) {
+  static Future<void> publish(HousingListing listing) async {
+    // 先调API发布
+    try {
+      final api = ApiService.instance;
+      await api.publishHousing({
+        'id': listing.id,
+        'title': listing.title,
+        'property_type': listing.propertyType,
+        'province': listing.province,
+        'city': listing.district,
+        'district': listing.area,
+        'town': listing.town,
+        'layout': listing.layout,
+        'size': listing.size,
+        'floor': listing.floor,
+        'decoration': listing.decoration,
+        'price': listing.price,
+        'description': listing.description,
+        'contact': listing.contact,
+        'verification_status': listing.verificationStatus,
+        'photos': listing.photos,
+        'publisher_type': listing.publisherType,
+        'company_name': listing.companyName ?? '',
+      });
+    } catch (_) {
+      // API失败静默忽略，本地仍然添加
+    }
     _listings.insert(0, listing);
     _notify();
   }
@@ -127,11 +161,19 @@ class HousingService {
   // ---- Favorites ----
   static bool isFavorite(String id) => _favorites.contains(id);
 
-  static void toggleFavorite(String id) {
+  static Future<void> toggleFavorite(String id) async {
     if (_favorites.contains(id)) {
       _favorites.remove(id);
+      // 调API取消收藏
+      try {
+        await ApiService.instance.removeHousingFavorite(id);
+      } catch (_) {}
     } else {
       _favorites.add(id);
+      // 调API添加收藏
+      try {
+        await ApiService.instance.addHousingFavorite(id);
+      } catch (_) {}
     }
     _notify();
   }
@@ -170,5 +212,65 @@ class HousingService {
 
   static void _notify() {
     changeNotifier.value = Random().nextInt(100000);
+  }
+
+  // -------------------------------------------------------------------------
+  // API integration
+  // -------------------------------------------------------------------------
+
+  /// 后台尝试从API加载真实数据，成功则替换演示数据
+  static Future<void> _loadFromApi() async {
+    try {
+      final api = ApiService.instance;
+      final result = await api.listHousing();
+      final items = result['items'] as List<dynamic>?;
+      if (items != null && items.isNotEmpty) {
+        // API有数据，替换演示数据
+        _listings.clear();
+        for (final item in items) {
+          _listings.add(_fromApiJson(item as Map<String, dynamic>));
+        }
+        _apiLoaded = true;
+        _notify();
+      }
+    } catch (_) {
+      // API失败，保持演示数据
+    }
+  }
+
+  /// 将API返回的JSON转换为HousingListing对象
+  static HousingListing _fromApiJson(Map<String, dynamic> json) {
+    // 处理Photos字段（可能是JSON字符串或列表）
+    List<String> photos = [];
+    final rawPhotos = json['photos'];
+    if (rawPhotos is List) {
+      photos = rawPhotos.cast<String>();
+    } else if (rawPhotos is String && rawPhotos != '[]') {
+      try {
+        final parsed = jsonDecode(rawPhotos);
+        if (parsed is List) photos = parsed.cast<String>();
+      } catch (_) {}
+    }
+
+    return HousingListing(
+      id: json['id'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      propertyType: json['property_type'] as String? ?? '',
+      province: json['province'] as String? ?? '',
+      district: json['city'] as String? ?? '',        // API的city映射到前端的district
+      area: json['district'] as String? ?? '',          // API的district映射到前端的area
+      town: json['town'] as String? ?? '',
+      layout: json['layout'] as String? ?? '',
+      size: (json['size'] as num?)?.toDouble() ?? 0,
+      floor: json['floor'] as String? ?? '',
+      decoration: json['decoration'] as String? ?? '',
+      price: (json['price'] as num?)?.toDouble() ?? 0,
+      description: json['description'] as String? ?? '',
+      contact: json['contact'] as String? ?? '',
+      verificationStatus: json['verification_status'] as String? ?? 'pending',
+      photos: photos,
+      publisherType: json['publisher_type'] as String? ?? '个人',
+      companyName: json['company_name'] as String?,
+    );
   }
 }

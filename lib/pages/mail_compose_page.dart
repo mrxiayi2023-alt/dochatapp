@@ -1,5 +1,5 @@
 import 'package:flutter/cupertino.dart';
-import 'mail_page.dart';
+import '../services/mail_service.dart';
 
 class MailComposePage extends StatefulWidget {
   const MailComposePage({super.key});
@@ -43,7 +43,7 @@ class _MailComposePageState extends State<MailComposePage> {
       isRead: true,
       folder: 'sent',
     );
-    allMails.insert(0, newMail);
+    MailService.addMail(newMail);
 
     Navigator.of(context).pop(true);
   }
@@ -73,7 +73,7 @@ class _MailComposePageState extends State<MailComposePage> {
       isRead: false,
       folder: 'drafts',
     );
-    allMails.insert(0, draft);
+    MailService.addMail(draft);
 
     Navigator.of(context).pop();
   }

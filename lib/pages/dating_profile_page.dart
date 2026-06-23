@@ -1,5 +1,5 @@
 import 'package:flutter/cupertino.dart';
-import 'dating_page.dart';
+import '../services/dating_service.dart';
 import '../services/verification_service.dart';
 
 class DatingProfilePage extends StatefulWidget {

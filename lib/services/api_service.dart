@@ -318,6 +318,440 @@ class ApiService {
   }
 
   // -------------------------------------------------------------------------
+  // Housing API
+  // -------------------------------------------------------------------------
+
+  /// Publish a housing listing.
+  Future<Map<String, dynamic>> publishHousing(Map<String, dynamic> data) async {
+    final response = await _dio.post('/housing/publish', data: data);
+    return _handleResponse(response);
+  }
+
+  /// List housing listings with filters.
+  Future<Map<String, dynamic>> listHousing({int page = 1, int pageSize = 20, String? province, String? city, String? district, String? propertyType, double? priceMin, double? priceMax, String? decoration, String? keyword}) async {
+    final params = <String, dynamic>{'page': page, 'page_size': pageSize};
+    if (province != null) params['province'] = province;
+    if (city != null) params['city'] = city;
+    if (district != null) params['district'] = district;
+    if (propertyType != null) params['property_type'] = propertyType;
+    if (priceMin != null) params['price_min'] = priceMin;
+    if (priceMax != null) params['price_max'] = priceMax;
+    if (decoration != null) params['decoration'] = decoration;
+    if (keyword != null) params['keyword'] = keyword;
+    final response = await _dio.get('/housing/list', queryParameters: params);
+    return _handleResponse(response);
+  }
+
+  /// Get housing detail.
+  Future<Map<String, dynamic>> getHousingDetail(String id) async {
+    final response = await _dio.get('/housing/$id');
+    return _handleResponse(response);
+  }
+
+  /// Get my listings.
+  Future<List<dynamic>> getMyHousingListings() async {
+    final response = await _dio.get('/housing/my');
+    final body = response.data as Map<String, dynamic>?;
+    if (body == null) throw Exception('empty response');
+    if (body['code'] != 200) throw Exception(body['message'] ?? 'error');
+    final data = body['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  /// Add favorite.
+  Future<void> addHousingFavorite(String id) async {
+    await _dio.post('/housing/$id/favorite');
+  }
+
+  /// Remove favorite.
+  Future<void> removeHousingFavorite(String id) async {
+    await _dio.delete('/housing/$id/favorite');
+  }
+
+  /// Get favorites.
+  Future<List<dynamic>> getHousingFavorites() async {
+    final response = await _dio.get('/housing/favorites');
+    final body = response.data as Map<String, dynamic>?;
+    if (body == null) throw Exception('empty response');
+    if (body['code'] != 200) throw Exception(body['message'] ?? 'error');
+    final data = body['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  /// Get browse history.
+  Future<List<dynamic>> getHousingBrowseHistory() async {
+    final response = await _dio.get('/housing/history');
+    final body = response.data as Map<String, dynamic>?;
+    if (body == null) throw Exception('empty response');
+    if (body['code'] != 200) throw Exception(body['message'] ?? 'error');
+    final data = body['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  /// Update housing listing.
+  Future<Map<String, dynamic>> updateHousing(String id, Map<String, dynamic> data) async {
+    final response = await _dio.put('/housing/$id', data: data);
+    return _handleResponse(response);
+  }
+
+  /// Delete housing listing.
+  Future<void> deleteHousing(String id) async {
+    await _dio.delete('/housing/$id');
+  }
+
+  // -------------------------------------------------------------------------
+  // Jobs API
+  // -------------------------------------------------------------------------
+
+  /// Publish a job.
+  Future<Map<String, dynamic>> publishJob(Map<String, dynamic> data) async {
+    final response = await _dio.post('/jobs/publish', data: data);
+    return _handleResponse(response);
+  }
+
+  /// List jobs.
+  Future<Map<String, dynamic>> listJobs({int page = 1, int pageSize = 20, String? city, String? district, String? education, String? experience, String? keyword}) async {
+    final params = <String, dynamic>{'page': page, 'page_size': pageSize};
+    if (city != null) params['city'] = city;
+    if (district != null) params['district'] = district;
+    if (education != null) params['education'] = education;
+    if (experience != null) params['experience'] = experience;
+    if (keyword != null) params['keyword'] = keyword;
+    final response = await _dio.get('/jobs/list', queryParameters: params);
+    return _handleResponse(response);
+  }
+
+  /// Get job detail.
+  Future<Map<String, dynamic>> getJobDetail(String id) async {
+    final response = await _dio.get('/jobs/$id');
+    return _handleResponse(response);
+  }
+
+  /// Apply for a job.
+  Future<void> applyJob(String jobId) async {
+    await _dio.post('/jobs/apply', data: {'job_id': jobId});
+  }
+
+  /// Get my applications.
+  Future<List<dynamic>> getMyApplications() async {
+    final response = await _dio.get('/jobs/applications');
+    final body = response.data as Map<String, dynamic>?;
+    if (body == null) throw Exception('empty response');
+    if (body['code'] != 200) throw Exception(body['message'] ?? 'error');
+    final data = body['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  /// Add job favorite.
+  Future<void> addJobFavorite(String id) async {
+    await _dio.post('/jobs/$id/favorite');
+  }
+
+  /// Remove job favorite.
+  Future<void> removeJobFavorite(String id) async {
+    await _dio.delete('/jobs/$id/favorite');
+  }
+
+  /// Get job favorites.
+  Future<List<dynamic>> getJobFavorites() async {
+    final response = await _dio.get('/jobs/favorites');
+    final body = response.data as Map<String, dynamic>?;
+    if (body == null) throw Exception('empty response');
+    if (body['code'] != 200) throw Exception(body['message'] ?? 'error');
+    final data = body['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  /// Save/Update resume.
+  Future<Map<String, dynamic>> saveResume(Map<String, dynamic> data) async {
+    final response = await _dio.post('/resume/create', data: data);
+    return _handleResponse(response);
+  }
+
+  /// Get my resume.
+  Future<Map<String, dynamic>> getMyResume() async {
+    final response = await _dio.get('/resume/my');
+    return _handleResponse(response);
+  }
+
+  /// Register company.
+  Future<Map<String, dynamic>> registerCompany(Map<String, dynamic> data) async {
+    final response = await _dio.post('/company/register', data: data);
+    return _handleResponse(response);
+  }
+
+  /// Get company profile.
+  Future<Map<String, dynamic>> getCompanyProfile() async {
+    final response = await _dio.get('/company/profile');
+    return _handleResponse(response);
+  }
+
+  /// Update company profile.
+  Future<Map<String, dynamic>> updateCompanyProfile(Map<String, dynamic> data) async {
+    final response = await _dio.put('/company/profile', data: data);
+    return _handleResponse(response);
+  }
+
+  /// Schedule interview.
+  Future<Map<String, dynamic>> scheduleInterview(Map<String, dynamic> data) async {
+    final response = await _dio.post('/interview/schedule', data: data);
+    return _handleResponse(response);
+  }
+
+  /// Get my interviews.
+  Future<List<dynamic>> getMyInterviews() async {
+    final response = await _dio.get('/interview/list');
+    final body = response.data as Map<String, dynamic>?;
+    if (body == null) throw Exception('empty response');
+    if (body['code'] != 200) throw Exception(body['message'] ?? 'error');
+    final data = body['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  // -------------------------------------------------------------------------
+  // Mall API
+  // -------------------------------------------------------------------------
+
+  /// Publish product.
+  Future<Map<String, dynamic>> publishProduct(Map<String, dynamic> data) async {
+    final response = await _dio.post('/mall/product/publish', data: data);
+    return _handleResponse(response);
+  }
+
+  /// List products.
+  Future<Map<String, dynamic>> listProducts({int page = 1, int pageSize = 20, String? category, String? keyword}) async {
+    final params = <String, dynamic>{'page': page, 'page_size': pageSize};
+    if (category != null) params['category'] = category;
+    if (keyword != null) params['keyword'] = keyword;
+    final response = await _dio.get('/mall/product/list', queryParameters: params);
+    return _handleResponse(response);
+  }
+
+  /// Get product detail.
+  Future<Map<String, dynamic>> getProductDetail(String id) async {
+    final response = await _dio.get('/mall/product/$id');
+    return _handleResponse(response);
+  }
+
+  /// Add to cart.
+  Future<void> addToCart(String productId, int quantity) async {
+    await _dio.post('/mall/cart/add', data: {'product_id': productId, 'quantity': quantity});
+  }
+
+  /// Update cart item quantity.
+  Future<void> updateCartItem(String productId, int quantity) async {
+    await _dio.put('/mall/cart/update', data: {'product_id': productId, 'quantity': quantity});
+  }
+
+  /// Remove from cart.
+  Future<void> removeFromCart(String productId) async {
+    await _dio.delete('/mall/cart/$productId');
+  }
+
+  /// Get cart.
+  Future<List<dynamic>> getCart() async {
+    final response = await _dio.get('/mall/cart');
+    final body = response.data as Map<String, dynamic>?;
+    if (body == null) throw Exception('empty response');
+    if (body['code'] != 200) throw Exception(body['message'] ?? 'error');
+    final data = body['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  /// Create order.
+  Future<Map<String, dynamic>> createOrder(List<Map<String, dynamic>> items) async {
+    final response = await _dio.post('/mall/order/create', data: {'items': items});
+    return _handleResponse(response);
+  }
+
+  /// List orders.
+  Future<Map<String, dynamic>> listOrders({int page = 1, int pageSize = 20, String? status}) async {
+    final params = <String, dynamic>{'page': page, 'page_size': pageSize};
+    if (status != null) params['status'] = status;
+    final response = await _dio.get('/mall/order/list', queryParameters: params);
+    return _handleResponse(response);
+  }
+
+  /// Get order detail.
+  Future<Map<String, dynamic>> getOrderDetail(String id) async {
+    final response = await _dio.get('/mall/order/$id');
+    return _handleResponse(response);
+  }
+
+  /// Ship order.
+  Future<void> shipOrder(String id, {String? trackingNumber}) async {
+    await _dio.post('/mall/order/$id/ship', data: {'tracking_number': trackingNumber ?? ''});
+  }
+
+  /// Receive order.
+  Future<void> receiveOrder(String id) async {
+    await _dio.post('/mall/order/$id/receive');
+  }
+
+  /// Complete order.
+  Future<void> completeOrder(String id) async {
+    await _dio.post('/mall/order/$id/complete');
+  }
+
+  /// Request refund.
+  Future<void> requestRefund(String id, String reason) async {
+    await _dio.post('/mall/order/$id/refund', data: {'reason': reason});
+  }
+
+  /// Create dispute.
+  Future<Map<String, dynamic>> createDispute(Map<String, dynamic> data) async {
+    final response = await _dio.post('/mall/dispute', data: data);
+    return _handleResponse(response);
+  }
+
+  // -------------------------------------------------------------------------
+  // Escrow API
+  // -------------------------------------------------------------------------
+
+  /// Create escrow order.
+  Future<Map<String, dynamic>> createEscrow(Map<String, dynamic> data) async {
+    final response = await _dio.post('/escrow/create', data: data);
+    return _handleResponse(response);
+  }
+
+  /// List escrow orders.
+  Future<Map<String, dynamic>> listEscrows({int page = 1, int pageSize = 20}) async {
+    final response = await _dio.get('/escrow/list', queryParameters: {'page': page, 'page_size': pageSize});
+    return _handleResponse(response);
+  }
+
+  /// Get escrow detail.
+  Future<Map<String, dynamic>> getEscrowDetail(String id) async {
+    final response = await _dio.get('/escrow/$id');
+    return _handleResponse(response);
+  }
+
+  /// Accept escrow.
+  Future<void> acceptEscrow(String id) async {
+    await _dio.post('/escrow/$id/accept');
+  }
+
+  /// Pay deposit.
+  Future<void> payEscrowDeposit(String id) async {
+    await _dio.post('/escrow/$id/deposit');
+  }
+
+  /// Confirm phase.
+  Future<void> confirmEscrowPhase(String id, int phase) async {
+    await _dio.post('/escrow/$id/confirm-phase', data: {'phase': phase});
+  }
+
+  /// Submit dispute.
+  Future<void> submitEscrowDispute(String id, String note) async {
+    await _dio.post('/escrow/$id/dispute', data: {'note': note});
+  }
+
+  // -------------------------------------------------------------------------
+  // Dating API
+  // -------------------------------------------------------------------------
+
+  /// Save dating profile.
+  Future<Map<String, dynamic>> saveDatingProfile(Map<String, dynamic> data) async {
+    final response = await _dio.post('/dating/profile', data: data);
+    return _handleResponse(response);
+  }
+
+  /// Get my dating profile.
+  Future<Map<String, dynamic>> getMyDatingProfile() async {
+    final response = await _dio.get('/dating/profile');
+    return _handleResponse(response);
+  }
+
+  /// Get recommend list.
+  Future<List<dynamic>> getDatingRecommend({String? gender, int? ageMin, int? ageMax}) async {
+    final params = <String, dynamic>{};
+    if (gender != null) params['gender'] = gender;
+    if (ageMin != null) params['age_min'] = ageMin;
+    if (ageMax != null) params['age_max'] = ageMax;
+    final response = await _dio.get('/dating/recommend', queryParameters: params);
+    final body = response.data as Map<String, dynamic>?;
+    if (body == null) throw Exception('empty response');
+    if (body['code'] != 200) throw Exception(body['message'] ?? 'error');
+    final data = body['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  /// Like/dislike a user.
+  Future<void> likeDatingUser(String toUid, {bool liked = true}) async {
+    await _dio.post('/dating/like', data: {'to_uid': toUid, 'liked': liked});
+  }
+
+  /// Get matches.
+  Future<List<dynamic>> getDatingMatches() async {
+    final response = await _dio.get('/dating/matches');
+    final body = response.data as Map<String, dynamic>?;
+    if (body == null) throw Exception('empty response');
+    if (body['code'] != 200) throw Exception(body['message'] ?? 'error');
+    final data = body['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  // -------------------------------------------------------------------------
+  // Mail API
+  // -------------------------------------------------------------------------
+
+  /// Send mail.
+  Future<Map<String, dynamic>> sendMail(Map<String, dynamic> data) async {
+    final response = await _dio.post('/mail/send', data: data);
+    return _handleResponse(response);
+  }
+
+  /// Get inbox.
+  Future<Map<String, dynamic>> getInbox({int page = 1, int pageSize = 20}) async {
+    final response = await _dio.get('/mail/inbox', queryParameters: {'page': page, 'page_size': pageSize});
+    return _handleResponse(response);
+  }
+
+  /// Get sent mails.
+  Future<Map<String, dynamic>> getSentMails({int page = 1, int pageSize = 20}) async {
+    final response = await _dio.get('/mail/sent', queryParameters: {'page': page, 'page_size': pageSize});
+    return _handleResponse(response);
+  }
+
+  /// Get mail detail.
+  Future<Map<String, dynamic>> getMailDetail(String id) async {
+    final response = await _dio.get('/mail/$id');
+    return _handleResponse(response);
+  }
+
+  /// Move mail to trash.
+  Future<void> moveMailToTrash(String id) async {
+    await _dio.post('/mail/$id/trash');
+  }
+
+  /// Delete mail permanently.
+  Future<void> deleteMail(String id) async {
+    await _dio.delete('/mail/$id');
+  }
+
+  // -------------------------------------------------------------------------
+  // Upload API
+  // -------------------------------------------------------------------------
+
+  /// Upload an image file.
+  Future<Map<String, dynamic>> uploadImage(String filePath) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath),
+    });
+    final response = await _dio.post('/upload/image', data: formData);
+    return _handleResponse(response);
+  }
+
+  // -------------------------------------------------------------------------
   // Internal helpers
   // -------------------------------------------------------------------------
 

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'jobs_page.dart';
+import '../services/jobs_service.dart';
 import 'jobs_publish_page.dart';
 import 'jobs_resume_page.dart';
 import 'jobs_detail_page.dart';

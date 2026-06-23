@@ -1,5 +1,5 @@
 import 'package:flutter/cupertino.dart';
-import 'jobs_page.dart';
+import '../services/jobs_service.dart';
 import 'jobs_resume_page.dart';
 import 'jobs_chat_page.dart';
 import '../services/verification_service.dart';

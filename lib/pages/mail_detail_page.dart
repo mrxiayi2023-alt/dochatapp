@@ -1,5 +1,5 @@
 import 'package:flutter/cupertino.dart';
-import 'mail_page.dart';
+import '../services/mail_service.dart';
 
 class MailDetailPage extends StatefulWidget {
   final MailItem mail;
@@ -18,19 +18,16 @@ class _MailDetailPageState extends State<MailDetailPage> {
     _mail = widget.mail;
     // Mark as read
     if (!_mail.isRead) {
-      final idx = allMails.indexWhere((m) => m.id == _mail.id);
-      if (idx != -1) {
-        allMails[idx] = MailItem(
-          id: _mail.id, sender: _mail.sender, subject: _mail.subject,
-          body: _mail.body, time: _mail.time, isRead: true, folder: _mail.folder,
-        );
-        _mail = allMails[idx];
-      }
+      MailService.markAsRead(_mail.id);
+      _mail = MailItem(
+        id: _mail.id, sender: _mail.sender, subject: _mail.subject,
+        body: _mail.body, time: _mail.time, isRead: true, folder: _mail.folder,
+      );
     }
   }
 
   void _deleteMail() {
-    allMails.removeWhere((m) => m.id == _mail.id);
+    MailService.deleteMail(_mail.id);
     Navigator.of(context).pop();
   }
 

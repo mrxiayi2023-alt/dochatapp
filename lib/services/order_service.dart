@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'cart_service.dart';
+import 'api_service.dart';
 import '../pages/mall_page.dart';
 
 class OrderInfo {
@@ -41,45 +42,50 @@ class OrderService {
   OrderService._();
 
   static final List<OrderInfo> _orders = [];
+  static bool _apiLoaded = false;
+
+  /// 是否已从API加载真实数据
+  static bool get isApiLoaded => _apiLoaded;
 
   /// Pre-populated demo orders for demonstration
   static void _ensureDemoOrders() {
-    if (_orders.isEmpty) {
-      final now = DateTime.now();
-      // Demo order 1: received (completed flow)
-      final demo1 = OrderInfo(
-        orderId: 'ORD${now.millisecondsSinceEpoch.toString().substring(5)}',
-        items: [CartEntry(product: _findProduct('手机壳'), quantity: 2)],
-        totalPrice: 30,
-        createdAt: now.subtract(const Duration(days: 5)),
-        status: 'completed',
-        logistics: 'signed',
-        trackingNumber: 'SF1234567890',
-      );
-      // Demo order 2: shipped
-      final demo2 = OrderInfo(
-        orderId: 'ORD${(now.millisecondsSinceEpoch + 1).toString().substring(5)}',
-        items: [
-          CartEntry(product: _findProduct('东北大米'), quantity: 1),
-          CartEntry(product: _findProduct('土蜂蜜'), quantity: 2),
-        ],
-        totalPrice: 171,
-        createdAt: now.subtract(const Duration(days: 2)),
-        status: 'shipped',
-        logistics: 'delivering',
-        trackingNumber: 'YT9876543210',
-      );
-      // Demo order 3: paid
-      final demo3 = OrderInfo(
-        orderId: 'ORD${(now.millisecondsSinceEpoch + 2).toString().substring(5)}',
-        items: [CartEntry(product: _findProduct('保温杯'), quantity: 1)],
-        totalPrice: 29,
-        createdAt: now.subtract(const Duration(hours: 3)),
-        status: 'paid',
-        logistics: 'picked_up',
-      );
-      _orders.addAll([demo3, demo2, demo1]);
-    }
+    if (_orders.isNotEmpty) return;
+    final now = DateTime.now();
+    // Demo order 1: received (completed flow)
+    final demo1 = OrderInfo(
+      orderId: 'ORD${now.millisecondsSinceEpoch.toString().substring(5)}',
+      items: [CartEntry(product: _findProduct('手机壳'), quantity: 2)],
+      totalPrice: 30,
+      createdAt: now.subtract(const Duration(days: 5)),
+      status: 'completed',
+      logistics: 'signed',
+      trackingNumber: 'SF1234567890',
+    );
+    // Demo order 2: shipped
+    final demo2 = OrderInfo(
+      orderId: 'ORD${(now.millisecondsSinceEpoch + 1).toString().substring(5)}',
+      items: [
+        CartEntry(product: _findProduct('东北大米'), quantity: 1),
+        CartEntry(product: _findProduct('土蜂蜜'), quantity: 2),
+      ],
+      totalPrice: 171,
+      createdAt: now.subtract(const Duration(days: 2)),
+      status: 'shipped',
+      logistics: 'delivering',
+      trackingNumber: 'YT9876543210',
+    );
+    // Demo order 3: paid
+    final demo3 = OrderInfo(
+      orderId: 'ORD${(now.millisecondsSinceEpoch + 2).toString().substring(5)}',
+      items: [CartEntry(product: _findProduct('保温杯'), quantity: 1)],
+      totalPrice: 29,
+      createdAt: now.subtract(const Duration(hours: 3)),
+      status: 'paid',
+      logistics: 'picked_up',
+    );
+    _orders.addAll([demo3, demo2, demo1]);
+    // 后台尝试从API加载真实数据
+    _loadFromApi();
   }
 
   static final Map<String, MallProduct> _productCache = {};
@@ -119,7 +125,7 @@ class OrderService {
     return _orders.where((o) => o.status == status).toList();
   }
 
-  static void placeOrder(List<CartEntry> items, double totalPrice) {
+  static Future<void> placeOrder(List<CartEntry> items, double totalPrice) async {
     _ensureDemoOrders();
     final orderId = 'ORD${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
     final order = OrderInfo(
@@ -130,6 +136,17 @@ class OrderService {
       status: 'paid',
       logistics: 'picked_up',
     );
+    // 先调API创建订单
+    try {
+      final apiItems = items.map((e) => {
+        'product_id': e.product.name,
+        'quantity': e.quantity,
+        'price': e.product.price,
+      }).toList();
+      await ApiService.instance.createOrder(apiItems);
+    } catch (_) {
+      // API失败静默忽略，本地照常创建
+    }
     _orders.insert(0, order);
     CartService.clear();
     _notify();
@@ -209,6 +226,37 @@ class OrderService {
   }
 
   static final ValueNotifier<int> changeNotifier = ValueNotifier<int>(0);
+
+  // -------------------------------------------------------------------------
+  // API integration
+  // -------------------------------------------------------------------------
+
+  /// 后台尝试从API加载真实订单数据，成功则替换演示数据
+  static Future<void> _loadFromApi() async {
+    try {
+      final api = ApiService.instance;
+      final result = await api.listOrders();
+      final items = result['items'] as List<dynamic>?;
+      if (items != null && items.isNotEmpty) {
+        _orders.clear();
+        for (final item in items) {
+          _orders.add(OrderInfo(
+            orderId: item['order_no'] as String? ?? item['id'] as String? ?? '',
+            items: [], // API返回的不含items明细，使用空列表
+            totalPrice: (item['total_price'] as num?)?.toDouble() ?? 0,
+            createdAt: DateTime.tryParse(item['created_at'] as String? ?? '') ?? DateTime.now(),
+            status: item['status'] as String? ?? 'paid',
+            logistics: item['logistics'] as String? ?? 'picked_up',
+            trackingNumber: item['tracking_number'] as String?,
+          ));
+        }
+        _apiLoaded = true;
+        _notify();
+      }
+    } catch (_) {
+      // API失败，保持演示数据
+    }
+  }
 
   static void _notify() {
     changeNotifier.value = Random().nextInt(100000);
