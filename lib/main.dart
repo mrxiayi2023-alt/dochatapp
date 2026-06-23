@@ -298,27 +298,27 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       const BottomNavigationBarItem(
         icon: Icon(CupertinoIcons.chat_bubble),
         activeIcon: Icon(CupertinoIcons.chat_bubble_fill),
-        label: '鑱婂ぉ',
+        label: '聊天',
       ),
       BottomNavigationBarItem(
         icon: _buildTabIcon(CupertinoIcons.person_2, badge),
         activeIcon: _buildTabIcon(CupertinoIcons.person_2_fill, badge),
-        label: '濂藉弸',
+        label: '好友',
       ),
       const BottomNavigationBarItem(
         icon: Icon(CupertinoIcons.globe),
         activeIcon: Icon(CupertinoIcons.globe),
-        label: '骞垮満',
+        label: '广场',
       ),
       BottomNavigationBarItem(
         icon: _buildTabIcon(CupertinoIcons.square_grid_2x2, serviceBadge),
         activeIcon: _buildTabIcon(CupertinoIcons.square_grid_2x2_fill, serviceBadge),
-        label: '鏈嶅姟',
+        label: '服务',
       ),
       const BottomNavigationBarItem(
         icon: Icon(CupertinoIcons.gear),
         activeIcon: Icon(CupertinoIcons.gear_solid),
-        label: '璁剧疆',
+        label: '设置',
       ),
     ];
 
