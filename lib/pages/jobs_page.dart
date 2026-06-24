@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+﻿import 'package:flutter/cupertino.dart';
 import 'jobs_detail_page.dart';
 import 'jobs_my_page.dart';
 import 'jobs_chat_page.dart';
@@ -8,6 +8,8 @@ import '../services/jobs_chat_service.dart';
 import '../services/jobs_service.dart';
 import '../widgets/region_picker.dart';
 
+import '../widgets/industry_picker.dart';
+import 'jobs_resume_page.dart';
 class JobsPage extends StatefulWidget {
   const JobsPage({super.key});
   @override
@@ -43,6 +45,8 @@ class _JobsPageState extends State<JobsPage> {
   String _selectedAvailability = '';
   String _selectedExpectedSalary = '';
   String _selectedStatus = ''; // 当前状态筛选
+  String _selectedIndustry = '';
+  String _selectedFundingStage = '';
 
   // Region filters
   RegionSelection? _selectedWorkRegion;   // 个人：工作地点
@@ -55,6 +59,8 @@ class _JobsPageState extends State<JobsPage> {
   static const _companySizeOptions = ['不限', '少于20人', '20-99人', '100-499人', '500-999人', '1000人以上'];
   static const _availabilityOptions = ['不限', '随时', '一周内', '两周内', '一个月内', '待定'];
   static const _statusOptions = ['不限', '在职', '待业'];
+  static const _fundingStageOptions = ['不限', '未融资', '天使轮', 'A轮', 'B轮', 'C轮', 'D轮及以上', '已上市', '不需要融资'];
+  static List<String> get _industryOptions => ['不限', ...industryCategories.map((c) => c.name)];
 
   @override
   void initState() {
@@ -122,6 +128,7 @@ class _JobsPageState extends State<JobsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final bool showGuide = !isCompanyView && !hasResume && _filtered.isEmpty;
     return CupertinoPageScaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       child: CustomScrollView(
@@ -165,7 +172,9 @@ class _JobsPageState extends State<JobsPage> {
           ),
           SliverToBoxAdapter(child: _buildSearchBar()),
           SliverToBoxAdapter(child: _buildFilterBar()),
-          if (isCompanyView)
+          if (showGuide)
+            SliverFillRemaining(hasScrollBody: false, child: _buildGuideSection())
+          else if (isCompanyView)
             SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) => _buildCandidateCard(_filteredCandidates[index]),
@@ -312,6 +321,10 @@ class _JobsPageState extends State<JobsPage> {
         _buildFilterChip('工作性质', _selectedJobType, _jobTypeOptions, (v) => setState(() => _selectedJobType = v)),
         const SizedBox(width: 8),
         _buildFilterChip('公司规模', _selectedCompanySize, _companySizeOptions, (v) => setState(() => _selectedCompanySize = v)),
+        const SizedBox(width: 8),
+        _buildFilterChip('行业', _selectedIndustry, _industryOptions, (v) => setState(() => _selectedIndustry = v)),
+        const SizedBox(width: 8),
+        _buildFilterChip('融资阶段', _selectedFundingStage, _fundingStageOptions, (v) => setState(() => _selectedFundingStage = v)),
       ]);
     }
 
@@ -657,6 +670,42 @@ class _JobsPageState extends State<JobsPage> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+
+  Widget _buildGuideSection() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(CupertinoIcons.doc_text_search, size: 72, color: CupertinoColors.activeBlue.withValues(alpha: 0.5)),
+            const SizedBox(height: 24),
+            const Text(
+              '欢迎使用电波直聘',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '您还没有创建简历，创建简历后即可浏览职位并投递。',
+              style: TextStyle(fontSize: 15, color: CupertinoColors.systemGrey),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            CupertinoButton(
+              borderRadius: const BorderRadius.all(Radius.circular(22)),
+              color: CupertinoColors.activeBlue,
+              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
+              onPressed: () => Navigator.of(context).push(
+                CupertinoPageRoute(builder: (_) => const JobsResumePage()),
+              ),
+              child: const Text('去创建简历', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
+            ),
+          ],
         ),
       ),
     );

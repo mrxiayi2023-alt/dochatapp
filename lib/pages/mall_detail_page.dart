@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+﻿import 'package:flutter/cupertino.dart';
 import 'mall_page.dart';
 import 'mall_dispute_page.dart';
 import '../services/order_service.dart';
@@ -15,6 +15,7 @@ class MallDetailPage extends StatefulWidget {
 class _MallDetailPageState extends State<MallDetailPage> {
   String? _orderId;
   bool _isSellerView = false;
+  bool _isFavorited = false;
   final _trackingController = TextEditingController();
 
   MallProduct get product => widget.product;
@@ -341,32 +342,65 @@ class _MallDetailPageState extends State<MallDetailPage> {
   }
 
   Widget _buildProductInfo() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: CupertinoColors.white, borderRadius: BorderRadius.circular(12)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(product.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('¥${product.price}', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: CupertinoColors.destructiveRed)),
-              if (product.unit.isNotEmpty) ...[
-                const SizedBox(width: 4),
-                Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(product.unit, style: const TextStyle(fontSize: 14, color: CupertinoColors.systemGrey))),
+      return Container(
+        margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: CupertinoColors.white, borderRadius: BorderRadius.circular(12)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(product.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+                ),
+                GestureDetector(
+                  onTap: () => setState(() => _isFavorited = !_isFavorited),
+                  child: Icon(
+                    _isFavorited ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                    size: 26,
+                    color: _isFavorited ? CupertinoColors.destructiveRed : CupertinoColors.systemGrey,
+                  ),
+                ),
               ],
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text('分类: ${product.category}', style: const TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
-        ],
-      ),
-    );
-  }
-
+            ),
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(' \${product.price}', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: CupertinoColors.destructiveRed)),
+                if (product.unit.isNotEmpty) ...[
+                  const SizedBox(width: 4),
+                  Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(product.unit, style: const TextStyle(fontSize: 14, color: CupertinoColors.systemGrey))),
+                ],
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.activeBlue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(CupertinoIcons.location_solid, size: 12, color: CupertinoColors.activeBlue),
+                      const SizedBox(width: 3),
+                      Text(
+                        '距你\${product.distance}km',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: CupertinoColors.activeBlue),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text('分类: \${product.category}', style: const TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+          ],
+        ),
+      );
+    }
   Widget _buildSellerInfo() {
     final repColor = _reputationColor(product.reputation);
     return Container(
@@ -724,3 +758,4 @@ class _MallDetailPageState extends State<MallDetailPage> {
     );
   }
 }
+

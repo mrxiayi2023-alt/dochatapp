@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+﻿import 'package:flutter/cupertino.dart';
 import '../services/order_service.dart';
 import 'mall_dispute_page.dart';
 
@@ -87,6 +87,8 @@ class _MallOrderDetailPageState extends State<MallOrderDetailPage> {
                   _buildSellerCard(),
                   const SizedBox(height: 12),
                   _buildAmountBreakdown(),
+                  const SizedBox(height: 12),
+                  _buildRefundRules(),
                   const SizedBox(height: 16),
                   _buildActionButtons(),
                   const SizedBox(height: 20),
@@ -410,6 +412,104 @@ class _MallOrderDetailPageState extends State<MallOrderDetailPage> {
     );
   }
 
+  Widget _buildRefundRules() {
+    final hasRefundIssue = _order.refundStatus != null || _order.returnStatus != null;
+    if (!hasRefundIssue) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: CupertinoColors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(CupertinoIcons.doc_text, size: 18, color: CupertinoColors.systemOrange),
+              const SizedBox(width: 6),
+              const Text('退款/售后状态', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_order.refundStatus == 'submitted')
+            _buildRefundStatusRow('退款审核中', CupertinoColors.systemOrange, '卖家正在处理您的退款申请'),
+          if (_order.refundStatus == 'rejected')
+            _buildRefundStatusRow('卖家已拒绝退款', CupertinoColors.destructiveRed, '您可申请平台仲裁解决争议'),
+          if (_order.refundStatus == 'approved')
+            _buildRefundStatusRow('退款已通过', CupertinoColors.systemGreen, '退款金额将原路返回'),
+          if (_order.returnStatus == 'submitted')
+            _buildRefundStatusRow('退货审核中', CupertinoColors.systemOrange, '卖家正在处理您的退货申请'),
+          if (_order.returnStatus == 'rejected')
+            _buildRefundStatusRow('卖家已拒绝退货', CupertinoColors.destructiveRed, '您可申请平台仲裁解决争议'),
+          if (_order.returnStatus == 'approved')
+            _buildRefundStatusRow('退货已通过', CupertinoColors.systemGreen, '请寄回商品，卖家收到后退款'),
+          if (_order.refundStatus == 'rejected' || _order.returnStatus == 'rejected')
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: CupertinoButton(
+                onPressed: _navigateToDispute,
+                borderRadius: const BorderRadius.all(Radius.circular(18)),
+                color: CupertinoColors.systemOrange,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(CupertinoIcons.shield_fill, size: 16, color: CupertinoColors.white),
+                    SizedBox(width: 6),
+                    Text('申请仲裁', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: CupertinoColors.systemGrey6,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('退货退款规则：', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CupertinoColors.darkBackgroundGray)),
+                SizedBox(height: 6),
+                Text(
+                  '• 未发货订单可申请仅退款，款项原路返回\n'
+                  '• 已发货订单需申请退货退款，寄回商品后退款\n'
+                  '• 卖家拒绝退款后可申请平台仲裁\n'
+                  '• 仲裁由17人陪审团投票裁决，先获9票者胜诉',
+                  style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey, height: 1.6),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRefundStatusRow(String label, Color color, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+            child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+          ),
+          const Spacer(),
+          if (desc.isNotEmpty)
+            Flexible(
+              child: Text(desc, style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey), textAlign: TextAlign.end),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildActionButtons() {
     return Column(
       children: [
@@ -422,8 +522,16 @@ class _MallOrderDetailPageState extends State<MallOrderDetailPage> {
             child: const Text('申请仅退款', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
           ),
         ],
-        if (_order.status == 'shipped') ...[
-          Row(
+                  if (_order.status == 'shipped') ...[
+            CupertinoButton(
+              onPressed: _showReturnForShippedConfirm,
+              borderRadius: const BorderRadius.all(Radius.circular(22)),
+              color: CupertinoColors.systemOrange,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: const Text('申请退货退款', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
+            ),
+            const SizedBox(height: 10),
+            Row(
             children: [
               Expanded(
                 child: CupertinoButton(
@@ -617,6 +725,31 @@ class _MallOrderDetailPageState extends State<MallOrderDetailPage> {
     }
   }
 
+  void _showReturnForShippedConfirm() {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('申请退货退款'),
+        content: const Text('商品已发货，您可以申请退货退款。\n\n需要退回商品后，卖家确认收货才会退款。\n\n确认申请？'),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _showReturnReasonPicker();
+            },
+            child: const Text('申请退货退款'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showReturnRefundConfirm() {
     showCupertinoDialog(
       context: context,
@@ -721,3 +854,4 @@ class _MallOrderDetailPageState extends State<MallOrderDetailPage> {
     );
   }
 }
+

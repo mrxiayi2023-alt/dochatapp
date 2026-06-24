@@ -1,16 +1,16 @@
 // 电波灵动即时通讯系统 V1.0
 // 著作权人：江苏栩熙晨梦网络科技有限公司
-// 开发完成日期：2026�?�?8�?
+// 开发完成日期：2026年8月8日
 // 文件说明：HTTP API服务封装
 
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // ---------------------------------------------------------------------------
-// API Service �?singleton Dio-based client for the backend
+// API Service — singleton Dio-based client for the backend
 // ---------------------------------------------------------------------------
 
-/// HTTP API服务类（单例模式），封装所有后端接口调�?
+/// HTTP API服务类（单例模式），封装所有后端接口调用
 class ApiService {
   static const String _baseUrl = 'http://localhost:8080/api';
   static const String _tokenKey = 'auth_token';
@@ -51,20 +51,20 @@ class ApiService {
 
   String? get token => _token;
 
-  /// 从本地存储加载认证令�?
+  /// 从本地存储加载认证令牌
   Future<void> loadToken() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString(_tokenKey);
   }
 
-  /// 保存认证令牌到本地存�?
+  /// 保存认证令牌到本地存储
   Future<void> saveToken(String token) async {
     _token = token;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
   }
 
-  /// 清除本地存储的认证令�?
+  /// 清除本地存储的认证令牌
   Future<void> clearToken() async {
     _token = null;
     final prefs = await SharedPreferences.getInstance();
@@ -86,7 +86,7 @@ class ApiService {
       'password': password,
       'code': code,
     });
-  /// 处理API响应，统一错误检�?
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
@@ -99,14 +99,14 @@ class ApiService {
       'phone': phone,
       'password': password,
     });
-  /// 处理API响应，统一错误检�?
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
   /// Fetch the current user profile. Requires a valid token in [_token].
   Future<Map<String, dynamic>> getProfile() async {
     final response = await _dio.get('/user/profile');
-  /// 处理API响应，统一错误检�?
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
@@ -116,11 +116,11 @@ class ApiService {
       '/user/search',
       queryParameters: {'phone': phone},
     );
-  /// 处理API响应，统一错误检�?
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
-  /// 通过手机号查找用户ID，如果输入已是ID则直接返�?
+  /// 通过手机号查找用户ID，如果输入已是ID则直接返回
   Future<String> resolveUserId(String phoneOrId) async {
     // 非纯数字视为已有ID
     if (RegExp(r'^\d{11}$').hasMatch(phoneOrId)) {
@@ -149,7 +149,7 @@ class ApiService {
       '/messages/send',
       data: {'to_id': toId, 'content': content, 'type': type},
     );
-  /// 处理API响应，统一错误检�?
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
@@ -187,12 +187,12 @@ class ApiService {
   // Read Receipt API (placeholder)
   // -------------------------------------------------------------------------
 
-  /// 标记与某用户的会话为已读。后端接口暂未实现时静默忽略�?
+  /// 标记与某用户的会话为已读。后端接口暂未实现时静默忽略
   Future<void> markConversationRead(String otherId) async {
     try {
       await _dio.post('/messages/read', data: {'with': otherId});
     } catch (_) {
-      // Backend API not implemented yet �?ignore
+      // Backend API not implemented yet — ignore
     }
   }
 
@@ -234,7 +234,7 @@ class ApiService {
       throw Exception(errorMsg);
     }
 
-    return null; // success �?request sent
+    return null; // success — request sent
   }
 
   /// Extract a human-readable error message from a DioException
@@ -298,7 +298,7 @@ class ApiService {
       'to_user_id': toUserId,
       'call_type': callType,
     });
-  /// 处理API响应，统一错误检�?
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
@@ -307,7 +307,7 @@ class ApiService {
     final response = await _dio.post('/call/accept', data: {
       'call_id': callId,
     });
-  /// 处理API响应，统一错误检�?
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
@@ -316,7 +316,7 @@ class ApiService {
     final response = await _dio.post('/call/reject', data: {
       'call_id': callId,
     });
-  /// 处理API响应，统一错误检�?
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
@@ -325,7 +325,7 @@ class ApiService {
     final response = await _dio.post('/call/end', data: {
       'call_id': callId,
     });
-  /// 处理API响应，统一错误检�?
+  /// 处理API响应，统一错误检查
     return _handleResponse(response);
   }
 
@@ -745,6 +745,60 @@ class ApiService {
       final items = data['items'];
       if (items is List) return items;
     }
+  /// Get dating profile by user ID.
+  Future<Map<String, dynamic>> getDatingProfileByID(String userId) async {
+    final response = await _dio.get('/dating/profile/$userId');
+    return _handleResponse(response);
+  }
+
+  /// Favorite/unfavorite a dating user.
+  Future<void> datingFavorite(String toUid, bool favorited) async {
+    await _dio.post('/dating/favorite', data: {'to_uid': toUid, 'favorited': favorited});
+  }
+
+  /// Get who likes me.
+  Future<List<dynamic>> getDatingLikes() async {
+    final response = await _dio.get('/dating/likes');
+    final body = response.data as Map<String, dynamic>?;
+    if (body == null) throw Exception('empty response');
+    if (body['code'] != 200) throw Exception(body['message'] ?? 'error');
+    final data = body['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  /// Get visitors.
+  Future<List<dynamic>> getDatingVisitors() async {
+    final response = await _dio.get('/dating/visitors');
+    final body = response.data as Map<String, dynamic>?;
+    if (body == null) throw Exception('empty response');
+    if (body['code'] != 200) throw Exception(body['message'] ?? 'error');
+    final data = body['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  /// Get nearby users.
+  Future<List<dynamic>> getDatingNearby({double radius = 5}) async {
+    final response = await _dio.get('/dating/nearby', queryParameters: {'radius': radius});
+    final body = response.data as Map<String, dynamic>?;
+    if (body == null) throw Exception('empty response');
+    if (body['code'] != 200) throw Exception(body['message'] ?? 'error');
+    final data = body['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  /// Record a visitor.
+  Future<void> recordDatingVisit(String toUid) async {
+    await _dio.post('/dating/visit', data: {'to_uid': toUid});
+  }
+
+  /// Report a user.
+  Future<void> reportDatingUser(String toUid, String reason) async {
+    await _dio.post('/dating/report', data: {'to_uid': toUid, 'reason': reason});
+  }
+
     return [];
   }
 

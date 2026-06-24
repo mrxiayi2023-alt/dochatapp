@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+﻿import 'package:flutter/cupertino.dart';
 import 'mall_order_detail_page.dart';
 import '../services/order_service.dart';
 
@@ -103,6 +103,43 @@ class _MallOrderListPageState extends State<MallOrderListPage> {
     );
   }
 
+  String _logisticsLabel(String logistics) {
+    switch (logistics) {
+      case 'picked_up': return '已揽收';
+      case 'transporting': return '运输中';
+      case 'delivering': return '派送中';
+      case 'signed': return '已签收';
+      default: return '';
+    }
+  }
+
+  Color _logisticsColor(String logistics) {
+    switch (logistics) {
+      case 'picked_up': return CupertinoColors.systemOrange;
+      case 'transporting': return CupertinoColors.activeBlue;
+      case 'delivering': return CupertinoColors.systemTeal;
+      case 'signed': return CupertinoColors.systemGreen;
+      default: return CupertinoColors.systemGrey;
+    }
+  }
+
+  String? _refundLabel(OrderInfo order) {
+    if (order.refundStatus == 'submitted') return '退款审核中';
+    if (order.refundStatus == 'rejected') return '退款被拒';
+    if (order.refundStatus == 'approved') return '退款已通过';
+    if (order.returnStatus == 'submitted') return '退货审核中';
+    if (order.returnStatus == 'rejected') return '退货被拒';
+    if (order.returnStatus == 'approved') return '退货已通过';
+    return null;
+  }
+
+  Color _refundLabelColor(String? label) {
+    if (label == null) return CupertinoColors.systemGrey;
+    if (label.contains('被拒')) return CupertinoColors.destructiveRed;
+    if (label.contains('通过')) return CupertinoColors.systemGreen;
+    return CupertinoColors.systemOrange;
+  }
+
   Widget _buildOrderCard(OrderInfo order) {
     String statusText;
     Color statusColor;
@@ -114,6 +151,8 @@ class _MallOrderListPageState extends State<MallOrderListPage> {
       default: statusText = order.status; statusColor = CupertinoColors.systemGrey;
     }
     final firstItem = order.items.isNotEmpty ? order.items.first : null;
+    final logisticsLabel = _logisticsLabel(order.logistics);
+    final refundLabel = _refundLabel(order);
     final timeStr = '${order.createdAt.month}月${order.createdAt.day}日 ${order.createdAt.hour.toString().padLeft(2, '0')}:${order.createdAt.minute.toString().padLeft(2, '0')}';
 
     return GestureDetector(
@@ -156,6 +195,30 @@ class _MallOrderListPageState extends State<MallOrderListPage> {
                     children: [
                       Text('¥${order.totalPrice.toStringAsFixed(0)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: CupertinoColors.destructiveRed)),
                       const Spacer(),
+                      if (refundLabel != null)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _refundLabelColor(refundLabel).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(refundLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _refundLabelColor(refundLabel))),
+                          ),
+                        ),
+                      if (logisticsLabel.isNotEmpty && order.status != 'completed')
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _logisticsColor(order.logistics).withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(logisticsLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: _logisticsColor(order.logistics))),
+                          ),
+                        ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
@@ -179,4 +242,5 @@ class _MallOrderListPageState extends State<MallOrderListPage> {
     );
   }
 }
+
 

@@ -1,33 +1,36 @@
 import 'package:flutter/cupertino.dart';
 import '../services/mail_service.dart';
+import 'mail_compose_page.dart';
 
 class MailDetailPage extends StatefulWidget {
-  final MailItem mail;
-  const MailDetailPage({super.key, required this.mail});
+  final MailMessage mail;
+  final String accountEmail;
+
+  const MailDetailPage({
+    super.key,
+    required this.mail,
+    this.accountEmail = '',
+  });
 
   @override
   State<MailDetailPage> createState() => _MailDetailPageState();
 }
 
 class _MailDetailPageState extends State<MailDetailPage> {
-  late MailItem _mail;
+  late MailMessage _mail;
 
   @override
   void initState() {
     super.initState();
     _mail = widget.mail;
-    // Mark as read
     if (!_mail.isRead) {
       MailService.markAsRead(_mail.id);
-      _mail = MailItem(
-        id: _mail.id, sender: _mail.sender, subject: _mail.subject,
-        body: _mail.body, time: _mail.time, isRead: true, folder: _mail.folder,
-      );
+      _mail = _mail.copyWith(isRead: true);
     }
   }
 
   void _deleteMail() {
-    MailService.deleteMail(_mail.id);
+    MailService.deleteMessage(_mail.id);
     Navigator.of(context).pop();
   }
 
@@ -35,33 +38,33 @@ class _MailDetailPageState extends State<MailDetailPage> {
     showCupertinoModalPopup(
       context: context,
       builder: (ctx) => CupertinoActionSheet(
-        title: const Text('邮件操作'),
+        title: const Text('\u90ae\u4ef6\u64cd\u4f5c'),
         actions: [
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.of(ctx).pop();
-              _showToast('回复功能即将上线');
+              _reply();
             },
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(CupertinoIcons.arrowshape_turn_up_left, size: 18),
                 SizedBox(width: 8),
-                Text('回复'),
+                Text('\u56de\u590d'),
               ],
             ),
           ),
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.of(ctx).pop();
-              _showToast('转发功能即将上线');
+              _forward();
             },
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(CupertinoIcons.arrowshape_turn_up_right, size: 18),
                 SizedBox(width: 8),
-                Text('转发'),
+                Text('\u8f6c\u53d1'),
               ],
             ),
           ),
@@ -76,7 +79,7 @@ class _MailDetailPageState extends State<MailDetailPage> {
               children: [
                 Icon(CupertinoIcons.delete, size: 18),
                 SizedBox(width: 8),
-                Text('删除'),
+                Text('\u5220\u9664'),
               ],
             ),
           ),
@@ -84,23 +87,49 @@ class _MailDetailPageState extends State<MailDetailPage> {
         cancelButton: CupertinoActionSheetAction(
           isDefaultAction: true,
           onPressed: () => Navigator.of(ctx).pop(),
-          child: const Text('取消'),
+          child: const Text('\u53d6\u6d88'),
         ),
       ),
     );
   }
 
-  void _showToast(String msg) {
-    showCupertinoDialog(
-      context: context,
-      builder: (ctx) => CupertinoAlertDialog(
-        title: Text(msg),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text('确定'),
-            onPressed: () => Navigator.of(ctx).pop(),
-          ),
-        ],
+  void _reply() {
+    final account = MailAccount(
+      id: _mail.accountId,
+      email: widget.accountEmail.isNotEmpty ? widget.accountEmail : _mail.sender,
+      displayName: '',
+      imapHost: '', imapPort: 993,
+      smtpHost: '', smtpPort: 465,
+    );
+    Navigator.of(context).push(
+      CupertinoPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => MailComposePage(
+          account: account,
+          replyTo: _mail.sender,
+          replySubject: _mail.subject,
+          replyBody: _mail.body,
+        ),
+      ),
+    );
+  }
+
+  void _forward() {
+    final account = MailAccount(
+      id: _mail.accountId,
+      email: widget.accountEmail.isNotEmpty ? widget.accountEmail : _mail.sender,
+      displayName: '',
+      imapHost: '', imapPort: 993,
+      smtpHost: '', smtpPort: 465,
+    );
+    Navigator.of(context).push(
+      CupertinoPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => MailComposePage(
+          account: account,
+          replySubject: 'Fwd: ${_mail.subject}',
+          replyBody: '\n\n--- \u8f6c\u53d1\u7684\u90ae\u4ef6 ---\n\u53d1\u4ef6\u4eba: ${_mail.sender}\n\u4e3b\u9898: ${_mail.subject}\n\n${_mail.body}',
+        ),
       ),
     );
   }
@@ -110,7 +139,7 @@ class _MailDetailPageState extends State<MailDetailPage> {
     return CupertinoPageScaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('邮件详情', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+        middle: const Text('\u90ae\u4ef6\u8be6\u60c5', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           pressedOpacity: 0.5,
@@ -151,15 +180,14 @@ class _MailDetailPageState extends State<MailDetailPage> {
           Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: CupertinoColors.systemBlue,
+                width: 36, height: 36,
+                decoration: const BoxDecoration(
+                  color: CupertinoColors.activeBlue,
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  _mail.sender.characters.first.toUpperCase(),
+                  (_mail.senderName.isNotEmpty ? _mail.senderName : _mail.sender).characters.first.toUpperCase(),
                   style: const TextStyle(color: CupertinoColors.white, fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ),
@@ -168,12 +196,29 @@ class _MailDetailPageState extends State<MailDetailPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_mail.sender, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    Text(
+                      _mail.senderName.isNotEmpty ? _mail.senderName : _mail.sender,
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    ),
                     const SizedBox(height: 2),
-                    Text(_mail.time, style: const TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+                    Text(_mail.sender, style: const TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
                   ],
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(CupertinoIcons.clock, size: 14, color: CupertinoColors.systemGrey),
+              const SizedBox(width: 4),
+              Text(_mail.time, style: const TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+              if (_mail.hasAttachments) ...[
+                const SizedBox(width: 12),
+                const Icon(CupertinoIcons.paperclip, size: 14, color: CupertinoColors.systemGrey),
+                const SizedBox(width: 4),
+                const Text('\u6709\u9644\u4ef6', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+              ],
             ],
           ),
         ],
@@ -203,23 +248,23 @@ class _MailDetailPageState extends State<MailDetailPage> {
         children: [
           Expanded(
             child: CupertinoButton(
-              onPressed: () => _showToast('回复功能即将上线'),
+              onPressed: _reply,
               borderRadius: const BorderRadius.all(Radius.circular(22)),
               color: CupertinoColors.activeBlue,
               pressedOpacity: 0.7,
               padding: const EdgeInsets.symmetric(vertical: 12),
-              child: const Text('回复', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
+              child: const Text('\u56de\u590d', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: CupertinoButton(
-              onPressed: () => _showToast('转发功能即将上线'),
+              onPressed: _forward,
               borderRadius: const BorderRadius.all(Radius.circular(22)),
               color: CupertinoColors.systemBlue,
               pressedOpacity: 0.7,
               padding: const EdgeInsets.symmetric(vertical: 12),
-              child: const Text('转发', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
+              child: const Text('\u8f6c\u53d1', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: CupertinoColors.white)),
             ),
           ),
           const SizedBox(width: 10),

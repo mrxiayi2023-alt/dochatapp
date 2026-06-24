@@ -5,6 +5,7 @@ import 'dating_page.dart';
 import 'jobs_page.dart';
 import 'mail_page.dart';
 import 'mall_page.dart';
+import 'logistics_page.dart';
 import '../services/notification_service.dart';
 
 // ---------------------------------------------------------------------------
@@ -32,6 +33,7 @@ const List<_Service> _services = [
   _Service(emoji: '🏠', name: '电波找房', description: '直连房东，无中介费', ecosystem: 'housing'),
   _Service(emoji: '💼', name: '电波直聘', description: '企业直招，信誉保障', ecosystem: 'jobs'),
   _Service(emoji: '📧', name: '电波邮箱', description: '账号即邮箱，注册即开通', ecosystem: 'mail'),
+  _Service(emoji: '🚚', name: '电波速运', description: '同城货运，长途物流', ecosystem: 'logistics'),
 ];
 
 class _RecentItem {
@@ -98,6 +100,8 @@ class _ServicesPageState extends State<ServicesPage> {
         return () => Navigator.of(context).push(
               CupertinoPageRoute(builder: (_) => const MailPage()),
             );
+      case '电波速运':
+        return () => Navigator.of(context).push(CupertinoPageRoute(builder: (_) => const LogisticsPage()),);
       case '电波商城':
         return () => Navigator.of(context).push(
               CupertinoPageRoute(builder: (_) => const MallPage()),

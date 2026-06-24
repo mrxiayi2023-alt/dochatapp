@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+﻿import 'package:flutter/cupertino.dart';
 import '../services/verification_service.dart';
 import '../widgets/region_picker.dart';
 import 'jobs_page.dart';
@@ -17,6 +17,21 @@ class _WorkEntry {
   String period;
   String description;
   _WorkEntry({required this.company, required this.title, required this.period, required this.description});
+}
+
+class _ProjectEntry {
+  String name;
+  String role;
+  String period;
+  String description;
+  String techStack;
+  _ProjectEntry({
+    required this.name,
+    required this.role,
+    required this.period,
+    required this.description,
+    required this.techStack,
+  });
 }
 
 class JobsResumePage extends StatefulWidget {
@@ -56,6 +71,11 @@ class _JobsResumePageState extends State<JobsResumePage> {
   // Work experience
   final List<_WorkEntry> _workList = [
     _WorkEntry(company: '智云科技', title: '前端开发工程师', period: '2020-至今', description: '负责公司核心产品前端架构设计与开发，主导了3个大型项目的技术方案落地，团队效率提升40%。'),
+  ];
+
+  // Project experience
+  final List<_ProjectEntry> _projectList = [
+    _ProjectEntry(name: '电波灵动APP', role: '全栈开发', period: '2025-2026', description: 'Flutter+Go即时通讯系统', techStack: 'Flutter, Go, PostgreSQL'),
   ];
 
   // Skills
@@ -123,6 +143,7 @@ class _JobsResumePageState extends State<JobsResumePage> {
               _buildEduSection(),
               const SizedBox(height: 16),
               _buildWorkSection(),
+              _buildProjectSection(),
               const SizedBox(height: 16),
               _buildSkillsSection(),
               const SizedBox(height: 30),
@@ -445,6 +466,137 @@ class _JobsResumePageState extends State<JobsResumePage> {
     );
   }
 
+
+  // ═══ Project experience ═══
+  Widget _buildProjectSection() {
+    return _buildCard('项目经历', [
+      ..._projectList.asMap().entries.map((e) => _buildProjectItem(e.key, e.value)),
+      if (_editing)
+        CupertinoButton(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          borderRadius: const BorderRadius.all(Radius.circular(10)),
+          color: CupertinoColors.systemGrey6,
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(CupertinoIcons.plus_circle, size: 18, color: CupertinoColors.activeBlue),
+              SizedBox(width: 6),
+              Text('添加项目经历', style: TextStyle(fontSize: 14, color: CupertinoColors.activeBlue)),
+            ],
+          ),
+          onPressed: () => _showProjectEditor(null),
+        ),
+    ]);
+  }
+
+  Widget _buildProjectItem(int index, _ProjectEntry project) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF2F2F7),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(project.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(project.role, style: const TextStyle(fontSize: 14)),
+                const SizedBox(height: 2),
+                Text(project.period, style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey2)),
+                if (project.description.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(project.description, style: const TextStyle(fontSize: 13, color: CupertinoColors.systemGrey), maxLines: 2, overflow: TextOverflow.ellipsis),
+                ],
+                if (project.techStack.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text('技术栈: ${project.techStack}', style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey2)),
+                ],
+              ],
+            ),
+          ),
+          if (_editing)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: () => _showProjectEditor(index),
+                  child: const Icon(CupertinoIcons.pencil, size: 18, color: CupertinoColors.activeBlue),
+                ),
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: () => setState(() => _projectList.removeAt(index)),
+                  child: const Icon(CupertinoIcons.delete, size: 18, color: CupertinoColors.destructiveRed),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ═══ Project editor dialog ═══
+  void _showProjectEditor(int? index) {
+    final isEdit = index != null;
+    final entry = isEdit ? _projectList[index] : _ProjectEntry(name: '', role: '', period: '', description: '', techStack: '');
+    final nameCtrl = TextEditingController(text: entry.name);
+    final roleCtrl = TextEditingController(text: entry.role);
+    final periodCtrl = TextEditingController(text: entry.period);
+    final descCtrl = TextEditingController(text: entry.description);
+    final techCtrl = TextEditingController(text: entry.techStack);
+    String? nameError;
+    String? roleError;
+    String? periodError;
+
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => CupertinoAlertDialog(
+          title: Text(isEdit ? '编辑项目经历' : '添加项目经历'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CupertinoTextField(controller: nameCtrl, placeholder: '项目名称', padding: const EdgeInsets.all(10), style: const TextStyle(fontSize: 14)),
+                if (nameError != null) Text(nameError!, style: const TextStyle(fontSize: 11, color: CupertinoColors.destructiveRed)),
+                const SizedBox(height: 10),
+                CupertinoTextField(controller: roleCtrl, placeholder: '担任角色', padding: const EdgeInsets.all(10), style: const TextStyle(fontSize: 14)),
+                if (roleError != null) Text(roleError!, style: const TextStyle(fontSize: 11, color: CupertinoColors.destructiveRed)),
+                const SizedBox(height: 10),
+                CupertinoTextField(controller: periodCtrl, placeholder: '如：2025-2026', padding: const EdgeInsets.all(10), style: const TextStyle(fontSize: 14)),
+                if (periodError != null) Text(periodError!, style: const TextStyle(fontSize: 11, color: CupertinoColors.destructiveRed)),
+                const SizedBox(height: 10),
+                CupertinoTextField(controller: descCtrl, placeholder: '项目描述', maxLines: 3, padding: const EdgeInsets.all(10), style: const TextStyle(fontSize: 14)),
+                const SizedBox(height: 10),
+                CupertinoTextField(controller: techCtrl, placeholder: '技术栈', padding: const EdgeInsets.all(10), style: const TextStyle(fontSize: 14)),
+              ],
+            ),
+          ),
+          actions: [
+            CupertinoDialogAction(onPressed: () => Navigator.of(ctx).pop(), child: const Text('取消')),
+            CupertinoDialogAction(onPressed: () {
+              setModalState(() {
+                nameError = nameCtrl.text.trim().isEmpty ? '请填写项目名称' : null;
+                roleError = roleCtrl.text.trim().isEmpty ? '请填写角色' : null;
+                periodError = periodCtrl.text.trim().isEmpty ? '请填写时间' : null;
+              });
+              if (nameError != null || roleError != null || periodError != null) return;
+
+              setState(() {
+                final newEntry = _ProjectEntry(name: nameCtrl.text.trim(), role: roleCtrl.text.trim(), period: periodCtrl.text.trim(), description: descCtrl.text.trim(), techStack: techCtrl.text.trim());
+                if (isEdit) { _projectList[index] = newEntry; } else { _projectList.add(newEntry); }
+              });
+              Navigator.of(ctx).pop();
+            }, child: const Text('确定')),
+          ],
+        ),
+      ),
+    );
+  }
   // ═══ Skills ═══
   Widget _buildSkillsSection() {
     return _buildCard('技能与优势', [

@@ -1,23 +1,35 @@
-import 'package:flutter/cupertino.dart';
+﻿import 'package:flutter/cupertino.dart';
 import '../services/housing_service.dart';
 import 'housing_page.dart';
 
-class HousingDetailPage extends StatelessWidget {
+class HousingDetailPage extends StatefulWidget {
   final HouseItem house;
   const HousingDetailPage({super.key, required this.house});
+
+  @override
+  State<HousingDetailPage> createState() => _HousingDetailPageState();
+}
+
+class _HousingDetailPageState extends State<HousingDetailPage> {
+  @override
+  void initState() {
+    super.initState();
+    // 自动记录浏览历史
+    HousingService.recordBrowse(widget.house.listingId);
+  }
 
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       navigationBar: CupertinoNavigationBar(
-        middle: Text(house.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+        middle: Text(widget.house.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
         trailing: ValueListenableBuilder<int>(
           valueListenable: HousingService.changeNotifier,
           builder: (context, _, _) {
-            final isFav = HousingService.isFavorite(house.listingId);
+            final isFav = HousingService.isFavorite(widget.house.listingId);
             return GestureDetector(
-              onTap: () => HousingService.toggleFavorite(house.listingId),
+              onTap: () => HousingService.toggleFavorite(widget.house.listingId),
               child: Icon(
                 isFav ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
                 size: 24,
@@ -69,7 +81,7 @@ class HousingDetailPage extends StatelessWidget {
                 const Icon(CupertinoIcons.house_fill, size: 48, color: CupertinoColors.systemGrey3),
                 const SizedBox(height: 8),
                 Text(
-                  '${house.title} - 图片${index + 1}',
+                  ' - 图片',
                   style: const TextStyle(fontSize: 14, color: CupertinoColors.systemGrey),
                 ),
               ],
@@ -91,14 +103,31 @@ class HousingDetailPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(house.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+          Row(
+            children: [
+              Expanded(
+                child: Text(widget.house.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemGreen.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  widget.house.distanceText,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: CupertinoColors.systemGreen),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           Text(
-            '¥${house.price}/月',
+            '¥/月',
             style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: CupertinoColors.destructiveRed),
           ),
           const SizedBox(height: 4),
-          Text(house.decoration, style: const TextStyle(fontSize: 14, color: CupertinoColors.systemGrey)),
+          Text(widget.house.decoration, style: const TextStyle(fontSize: 14, color: CupertinoColors.systemGrey)),
         ],
       ),
     );
@@ -117,11 +146,12 @@ class HousingDetailPage extends StatelessWidget {
         children: [
           const Text('房源详情', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),
-          _buildDetailRow('区域', house.area),
-          _buildDetailRow('户型', house.layout),
-          _buildDetailRow('面积', house.size),
+          _buildDetailRow('区域', widget.house.area),
+          _buildDetailRow('户型', widget.house.layout),
+          _buildDetailRow('面积', widget.house.size),
           _buildDetailRow('楼层', '8/18层'),
-          _buildDetailRow('装修', house.decoration),
+          _buildDetailRow('装修', widget.house.decoration),
+          _buildDetailRow('距离', widget.house.distanceText),
         ],
       ),
     );
@@ -145,6 +175,7 @@ class HousingDetailPage extends StatelessWidget {
   }
 
   Widget _buildLandlordSection(BuildContext context) {
+    final isAgent = widget.house.publisherType == '中介';
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(16),
@@ -163,24 +194,36 @@ class HousingDetailPage extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: CupertinoColors.systemTeal,
+                  color: isAgent ? CupertinoColors.systemTeal : CupertinoColors.systemGreen,
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
-                child: const Text('东', style: TextStyle(color: CupertinoColors.white, fontSize: 20, fontWeight: FontWeight.w600)),
+                child: Text(isAgent ? '介' : '个', style: const TextStyle(color: CupertinoColors.white, fontSize: 20, fontWeight: FontWeight.w600)),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('张房东', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    Text(isAgent ? (widget.house.companyName ?? '中介') : '个人房东',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 2),
                     Row(
                       children: [
                         const Icon(CupertinoIcons.star_fill, size: 14, color: CupertinoColors.systemOrange),
                         const SizedBox(width: 4),
-                        const Text('信誉分 98', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+                        Text('信誉分98', style: const TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+                        if (isAgent && widget.house.companyName != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: CupertinoColors.systemTeal.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(widget.house.companyName!, style: const TextStyle(fontSize: 10, color: CupertinoColors.systemTeal)),
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -192,7 +235,7 @@ class HousingDetailPage extends StatelessWidget {
                     context: context,
                     builder: (ctx) => CupertinoAlertDialog(
                       title: const Text('联系房东'),
-                      content: Text('即将与${house.title}的房东发起聊天'),
+                      content: Text('即将与的房东发起聊天'),
                       actions: [
                         CupertinoDialogAction(
                           child: const Text('确定'),

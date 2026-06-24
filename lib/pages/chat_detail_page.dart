@@ -1,4 +1,4 @@
-// 电波灵动即时通讯系统 V1.0
+﻿// 电波灵动即时通讯系统 V1.0
 // 著作权人：江苏栩熙晨梦网络科技有限公司
 // 开发完成日期：2026年5月28日
 // 文件说明：单聊详情页面
@@ -13,6 +13,7 @@ import '../services/api_service.dart';
 import '../services/auth_provider.dart';
 import '../services/websocket_service.dart';
 import 'call_page.dart';
+import 'location_sharing_page.dart';
 
 // ---------------------------------------------------------------------------
 // Message Model (UI)
@@ -400,6 +401,13 @@ class _ChatDetailPageState extends ConsumerState<ChatDetailPage> {
               _showBurnSettingPicker();
             },
             child: Text(_burnLabel),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.of(context).push(CupertinoPageRoute(builder: (_) => const LocationSharingPage()));
+            },
+            child: const Text('实时定位'),
           ),
         ],
         cancelButton: CupertinoActionSheetAction(

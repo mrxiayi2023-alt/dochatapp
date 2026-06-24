@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+﻿import 'package:flutter/cupertino.dart';
 import 'dating_profile_page.dart';
 import '../services/notification_service.dart';
 import '../services/dating_service.dart';
@@ -41,6 +41,22 @@ class _DatingPageState extends State<DatingPage> {
         slivers: [
           CupertinoSliverNavigationBar(
             largeTitle: const Text('电波婚恋'),
+            trailing: GestureDetector(
+              onTap: () => Navigator.of(context).push(
+                CupertinoPageRoute(
+                  builder: (_) => DatingProfilePage(user: DatingService.users.first),
+                ),
+              ),
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: const BoxDecoration(
+                  color: CupertinoColors.systemGrey,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(CupertinoIcons.person_fill, color: CupertinoColors.white, size: 18),
+              ),
+            ),
           ),
           SliverToBoxAdapter(child: _buildFilterBar()),
           SliverList(
